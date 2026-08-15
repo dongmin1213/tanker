@@ -12,5 +12,9 @@ unity/.vsconfig
 unity/.idea/
 unity/.vs/
 
+# 캡처/생성물
+unity/captures/
+captures/
+
 # OS
 .DS_Store
