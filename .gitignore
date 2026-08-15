@@ -1,0 +1,16 @@
+# Unity 생성물 (unity/ = Unity 프로젝트 루트)
+unity/Library/
+unity/Temp/
+unity/Obj/
+unity/Logs/
+unity/UserSettings/
+unity/Build/
+unity/Builds/
+unity/*.csproj
+unity/*.sln
+unity/.vsconfig
+unity/.idea/
+unity/.vs/
+
+# OS
+.DS_Store
