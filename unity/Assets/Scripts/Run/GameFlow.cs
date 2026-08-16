@@ -179,7 +179,7 @@ namespace Tanker
             Banner(Loc.T("map.h1"), 790);
 
             // 파티 현황 스트립 — 미니 초상 + HP (맵이 주인공 — 스트립은 낮게)
-            var strip = UiKit.FramedPanel("strip", screen, new Vector2(0, 618), new Vector2(1000, 175), center: true);
+            var strip = UiKit.FramedPanel("strip", screen, new Vector2(0, 622), new Vector2(1000, 190), center: true);
             strip.raycastTarget = false;
             int count = 1 + run.Party.Count;
             float step = Mathf.Min(190f, 880f / count);
