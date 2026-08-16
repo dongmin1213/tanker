@@ -36,7 +36,7 @@ namespace Tanker
             ["unit.goblinA"] = new[] { "고블린A", "Goblin A" },
             ["unit.goblinB"] = new[] { "고블린B", "Goblin B" },
             ["unit.goblin"] = new[] { "고블린", "Goblin" },
-            ["unit.archer"] = new[] { "궁수", "Archer" },
+            ["unit.archer"] = new[] { "해골 궁수", "Skeleton Archer" },
             ["unit.brute"] = new[] { "브루트", "Brute" },
             ["unit.bruteX"] = new[] { "브루트X", "Brute X" },
             ["unit.bruteY"] = new[] { "브루트Y", "Brute Y" },

@@ -156,7 +156,7 @@ namespace Tanker
             turnText = Label("turn", root, new Vector2(540, 1850), new Vector2(1000, 50), "", 40, Color.white, bold: true);
             savedText = Label("saved", root, new Vector2(540, 1790), new Vector2(1000, 40), "", 30, Hex("ffd75e"));
             logText = Label("log", root, new Vector2(540, 770), new Vector2(1020, 60), "", 34, Hex("cfc8e8"));
-            deckText = Label("deck", root, new Vector2(540, 715), new Vector2(1000, 36), "", 24, Hex("8f86ad"));
+            deckText = Label("deck", root, new Vector2(540, 705), new Vector2(1000, 36), "", 24, Hex("8f86ad"));
 
             // 아군 슬롯 — 탱커 고정 + 동료 최대 4
             posOf[mgr.Tank] = new Vector2(400, 1120);
@@ -201,15 +201,15 @@ namespace Tanker
             foreach (var a in mgr.Allies) MakeUnitView(a);
             foreach (var e in mgr.Enemies) MakeUnitView(e);
 
-            // 핸드 카드 3장 + 진행
+            // 핸드 카드 3장(세로 대형 — 모바일 탭 타겟) + 전폭 진행 바
             for (int i = 0; i < 3; i++)
             {
                 int idx = i;
-                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(180 + i * 270, 560), new Vector2(250, 190), "", () => mgr.PressCard(idx), 26);
+                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(190 + i * 350, 480), new Vector2(300, 400), "", () => mgr.PressCard(idx), 34);
                 cardTexts[i] = cardBtns[i].GetComponentInChildren<Text>();
             }
-            goBtn = UiKit.Btn("go", root, new Vector2(945, 560), new Vector2(210, 190), Loc.T("skill.go"), () => mgr.EndTurn(), 38);
-            Label("hintGo", root, new Vector2(540, 435), new Vector2(1000, 40), Loc.T("hint.cards"), 22, Hex("8f86ad"));
+            goBtn = UiKit.Btn("go", root, new Vector2(540, 155), new Vector2(980, 130), Loc.T("skill.go"), () => mgr.EndTurn(), 42);
+            Label("hintGo", root, new Vector2(540, 45), new Vector2(1000, 40), Loc.T("hint.cards"), 22, Hex("8f86ad"));
 
             resultPanel = Panel("result", root, new Vector2(540, 960), new Vector2(1080, 1920), new Color(0, 0, 0, 0.72f)).gameObject;
             var resultRt = resultPanel.GetComponent<RectTransform>();
@@ -325,7 +325,7 @@ namespace Tanker
                 cardBtns[i].gameObject.SetActive(has);
                 if (!has) continue;
                 var card = mgr.Hand[i];
-                cardTexts[i].text = Cards.NameOf(card) + "\n<size=20>" + Loc.T("card." + card + ".s") + "</size>";
+                cardTexts[i].text = Cards.NameOf(card) + "\n\n<size=26>" + Loc.T("card." + card + ".s") + "</size>";
                 cardBtns[i].interactable = player && mgr.CardPlayable(i);
                 UiKit.SetSelected(cardBtns[i], mgr.PendingCard == i || mgr.PlannedCard == i);
             }
