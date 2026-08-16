@@ -123,11 +123,13 @@ namespace Tanker
                 case "tank": return new Vector2(170, 190);
                 case "brute": case "orc": return new Vector2(180, 200);
                 case "boss": return new Vector2(240, 280);
-                case "warrior": case "beastkin": case "paladin": case "berserker": return new Vector2(150, 170);
+                case "warrior": case "beastkin": case "paladin": case "berserker": case "warden": return new Vector2(150, 170);
                 case "slime": return new Vector2(130, 120);
                 case "spider": return new Vector2(170, 140);
                 case "golem": return new Vector2(190, 210);
                 case "bat": return new Vector2(120, 100);
+                case "chief": return new Vector2(160, 180);
+                case "bomber": case "thief": return new Vector2(140, 150);
                 default: return new Vector2(140, 160);
             }
         }
@@ -157,6 +159,11 @@ namespace Tanker
                 case "golem": return Hex("6f6f7a");
                 case "bat": return Hex("55415f");
                 case "necro": return Hex("3f5548");
+                case "warden": return Hex("5f7a8f");
+                case "shadow": return Hex("3f3f55");
+                case "chief": return Hex("7a8f3f");
+                case "bomber": return Hex("8f5f3f");
+                case "thief": return Hex("6a5f3f");
                 default: return Hex("6a8f4f");
             }
         }
@@ -409,8 +416,8 @@ namespace Tanker
                 ((RectTransform)cardBtns[i].transform).anchoredPosition = new Vector2(x0 + i * spacing, 468);
                 var card = mgr.Hand[i];
                 cardTexts[i].text = Cards.NameOf(card)
-                    + "\n<size=19>" + BadgeOf(card) + "</size>"
-                    + "\n\n<size=23>" + Loc.T("card." + card + ".s") + "</size>";
+                    + "\n<size=19>" + BadgeOf(card.Type) + "</size>"
+                    + "\n\n<size=23>" + Cards.ShortDesc(card) + "</size>";
                 cardBtns[i].interactable = player && mgr.CardPlayable(i);
                 UiKit.SetSelected(cardBtns[i], mgr.PendingCard == i || mgr.PlannedCard == i);
             }
@@ -442,14 +449,17 @@ namespace Tanker
             else if (u.Team == Team.Enemy && u.TauntTurns > 0) v.Status.text = Loc.F("st.taunted", u.TauntTurns);
             else if (u.Team == Team.Enemy && u.Stunned) v.Status.text = Loc.T("st.stunned");
             else if (mgr.PlannedTarget == u && mgr.PlannedCard >= 0) v.Status.text = Loc.F("st.cardPlanned", Cards.NameOf(mgr.Hand[mgr.PlannedCard]));
-            else if (u.Shielded) v.Status.text = Loc.T("st.shielded");
+            else if (u.ShieldCharges > 0) v.Status.text = Loc.F("st.shielded", u.ShieldCharges);
             else if (u.IsTank && mgr.Bracing) v.Status.text = Loc.T("st.bracing");
             else if (u.Shaken) v.Status.text = Loc.T("st.shaken");
             else if (mgr.CoverTarget == u) v.Status.text = Loc.T("st.covered");
             // 고유 매커니즘은 상시 노출 — 첫 만남에 설명 없는 능력은 불친절 (유료 완성도)
             else if (u.Trait == Trait.Frenzy && u.Alive && u.Hp * 2 <= u.MaxHp) v.Status.text = Loc.T("st.frenzy");
+            else if (u.Trait == Trait.FullHpDouble && u.Alive && u.Hp >= u.MaxHp) v.Status.text = Loc.T("st.fullhp");
+            else if (u.Trait == Trait.Momentum && u.Momentum > 0) v.Status.text = Loc.F("st.momentum", u.Momentum);
             else if (u.Thorns > 0) v.Status.text = Loc.F("st.thorns", u.Thorns);
             else if (u.Lifesteal) v.Status.text = Loc.T("st.lifesteal");
+            else if (u.Aura) v.Status.text = Loc.T("st.aura");
             else if (u.Ai == AiKind.EnemyHealer) v.Status.text = Loc.T("st.enemyHealer");
             else v.Status.text = "";
 
@@ -472,7 +482,7 @@ namespace Tanker
             bool clickable = false;
             if (mgr.Phase == Phase.Player && u.Alive && mgr.PendingCard >= 0)
             {
-                var need = Cards.TargetOf(mgr.Hand[mgr.PendingCard]);
+                var need = Cards.TargetOf(mgr.Hand[mgr.PendingCard].Type);
                 clickable = (need == CardTarget.Enemy && u.Team == Team.Enemy)
                          || (need == CardTarget.Ally && u.Team == Team.Ally && !u.IsTank);
             }
@@ -556,6 +566,21 @@ namespace Tanker
                 label.text = Loc.F("intent.heal", ht.Name);
                 label.color = Hex("8fd4a8");
                 DrawLine(pair[0], posOf[e], posOf[ht], Hex("8fd4a8"));
+                return;
+            }
+
+            if (e.Ai == AiKind.Bomber)
+            {
+                label.text = e.BombTimer <= 0 ? Loc.T("intent.boom") : Loc.F("intent.fuse", e.BombTimer);
+                label.color = Hex("ff8a4a");
+                return;
+            }
+
+            if (e.Ai == AiKind.Thief)
+            {
+                if (mgr.IsTauntedNow(e)) { label.text = Loc.T("intent.curseWasted"); label.color = Hex("ffd75e"); return; }
+                label.text = Loc.T("intent.steal");
+                label.color = Hex("ffd75e");
                 return;
             }
 

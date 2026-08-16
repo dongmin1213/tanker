@@ -15,6 +15,8 @@ namespace Tanker
         ShamanCurse,      // 공격 대신 최강 공격수에게 위축 저주. 도발되면 행동 낭비
         SpiderDouble,     // 같은 대상(최저 HP 비탱커)을 연타 2회 — 엄호는 첫 타만 리다이렉트
         EnemyHealer,      // 공격 대신 가장 다친 다른 적을 회복. 도발되면 행동 낭비
+        Bomber,           // 카운트다운 후 전원 광역 자폭 — 죽이면 해제 (v0.7)
+        Thief,            // 공격 대신 골드를 훔침 — 처치하면 이자 붙여 회수 (v0.7)
     }
 
     /// 아군 클래스 고유 특성 — 겹치지 않는 매커니즘 (풀 확장 규칙)
@@ -24,6 +26,14 @@ namespace Tanker
         TankHealOnHit,    // 성기사: 공격할 때마다 탱커 회복
         Frenzy,           // 광전사: HP 절반 이하면 공격력 2배
         Cleanse,          // 음유시인: 공격 후 위축된 아군 1명 해제
+        FullHpDouble,     // 문지기: 자기 HP가 최대면 공격력 2배 (풀피 유지 보상)
+        KillChain,        // 그림자: 적을 처치하면 즉시 한 번 더 공격
+        Momentum,         // 전사: 같은 대상을 연속 공격할 때마다 공격력 +1 누적
+        GoldOnKill,       // 도적: 적을 처치하면 골드 획득
+        ArcaneNova,       // 마법사: N턴마다 모든 적에게 절반 피해 광역
+        Sniper,           // 궁수: 킬각 무시, 항상 공격력이 가장 높은 적을 조준
+        FirstStrike,      // 암살자: 전투 첫 턴 공격력 2배 (선제 기습)
+        Devour,           // 수인: 적을 처치하면 자신을 회복 (포식)
     }
 
     public class Unit
@@ -46,7 +56,7 @@ namespace Tanker
         public bool Charging;
         public bool Enraged;
         public bool Stunned;     // 밀쳐내기: 이번 턴 행동 취소
-        public bool Shielded;    // 철벽 방패: 이번 턴 첫 피해 무효
+        public int ShieldCharges; // 철벽 방패: 남은 무효 횟수 (강화 시 2)
         public int Step;
         public int ChargeOffset;
         public bool SmashToDps = true;
@@ -54,6 +64,11 @@ namespace Tanker
         public int Thorns;       // 적 전용: 맞을 때 공격자에게 반사 피해 (0 = 없음)
         public bool Lifesteal;   // 적 전용: 준 피해만큼 회복
         public Unit HealIntent;  // EnemyHealer 전용: 회복 대상
+        public bool Aura;        // 고블린 대장: 살아있는 동안 다른 적 공격 +1 (v0.7)
+        public int BombTimer;    // Bomber 전용: 남은 턴 (0이 되는 턴에 자폭)
+        public int StolenGold;   // Thief 전용: 훔친 골드 누적
+        public int Momentum;     // 전사 전용: 연속 공격 누적
+        public Unit LastTarget;  // 전사 전용: 직전 공격 대상
 
         public bool Alive => Hp > 0;
 

@@ -5,15 +5,19 @@ namespace Tanker
     public enum NodeType { Battle, Elite, Event, Rest, Shop, Treasure, Boss }
 
     /// 분기 맵의 방 하나 — Next는 다음 층에서 이동 가능한 방 Id (StS식 DAG)
+    [System.Serializable]
     public class MapNode
     {
         public int Id, Floor;
         public float X;             // 맵 화면 가로 슬롯 좌표
         public NodeType Type;
-        public readonly List<int> Next = new();
+        public List<int> Next = new();
     }
 
-    public enum ClassId { Warrior, Rogue, Mage, Ranger, Assassin, Beastkin, Cleric, Paladin, Berserker, Bard }
+    public enum ClassId { Warrior, Rogue, Mage, Ranger, Assassin, Beastkin, Cleric, Paladin, Berserker, Bard, Warden, Shadow }
+
+    /// 런 전체 패시브 유물 (v0.7) — 획득: 엘리트 확정 / 보물 택1 / 상점
+    public enum RelicId { ThornShield, VeteranHelm, WarBanner, GoldMagnet, WaterSkin, VictoryMeal, IronHeart, MerchantSeal, OldStandard, GuardCharm }
 
     public class ClassDef
     {
@@ -22,6 +26,8 @@ namespace Tanker
     }
 
     /// 던전 런 한 판의 상태 — 시드가 파티·인카운터·덱 셔플을 결정한다 (모든 랜덤은 사전 공개).
+    /// JsonUtility로 통째 저장/복원 (노드마다 자동 저장 — 모바일 중단 대응).
+    [System.Serializable]
     public class RunState
     {
         public int Seed;
@@ -29,17 +35,28 @@ namespace Tanker
         public int Gold;
         public int TankHp;
         public List<MapNode> Map;             // 시드 생성 분기 맵
-        public readonly HashSet<int> Visited = new();
+        public List<int> Visited = new();
         public List<ClassId> Party = new();   // 동료 (탱커 제외)
         public List<int> PartyHp = new();
-        public List<CardType> Deck = new();
+        public List<Card> Deck = new();
+        public List<RelicId> Relics = new();  // v0.7 유물
         public bool DpsShakenNext;            // 이벤트 (c) — 다음 전투에서 최강 공격수 위축 시작
         public int TauntGuard, CoverReduce, BraceBonus;
         public int TotalRedirected, TotalMitigated;
         public int BattlesWon;
-        public int BattleIndex;               // 전투 순번 (스케일링 스테이지)
+        public int BattleIndex;               // 전투 순번 (통계)
 
-        public static int TankMax => Balance.I.tankHp;
+        public static int TankMax => Balance.I.tankHp; // 기본 최대 (유물 미반영 — 표시는 TankMaxHp 사용)
+        public int TankMaxHp => Balance.I.tankHp + (Has(RelicId.IronHeart) ? Balance.I.relicIronHeart : 0);
+
+        public bool Has(RelicId r) => Relics.Contains(r);
+
+        public void AddRelic(RelicId r)
+        {
+            if (Has(r)) return;
+            Relics.Add(r);
+            if (r == RelicId.IronHeart) TankHp += Balance.I.relicIronHeart; // 최대와 함께 현재 HP도 상승
+        }
 
         public MapNode CurNode => Cur >= 0 ? Map[Cur] : null;
         public int FloorReached => Cur >= 0 ? Map[Cur].Floor + 1 : 0;
@@ -53,21 +70,32 @@ namespace Tanker
             return r;
         }
 
-        public RunState(int seed)
+        public RunState() { } // JsonUtility 복원용
+
+        /// firstRun: 첫 원정은 탱커+전사+클레릭 고정 — 규칙을 배우는 안전한 구성 (온보딩)
+        public RunState(int seed, bool firstRun = false)
         {
             Seed = seed;
             TankHp = Balance.I.tankHp;
-            var rng = new System.Random(seed);
-            int n = Balance.I.partyMinCompanions
-                  + rng.Next(Balance.I.partyMaxCompanions - Balance.I.partyMinCompanions + 1);
-            var pool = new List<ClassId>((ClassId[])System.Enum.GetValues(typeof(ClassId)));
-            for (int i = 0; i < n && pool.Count > 0; i++)
+            if (firstRun)
             {
-                var pick = pool[rng.Next(pool.Count)];
-                pool.Remove(pick);
-                Party.Add(pick);
-                PartyHp.Add(RunData.Class(pick).Hp);
+                Party.Add(ClassId.Warrior);
+                Party.Add(ClassId.Cleric);
             }
+            else
+            {
+                var rng = new System.Random(seed);
+                int n = Balance.I.partyMinCompanions
+                      + rng.Next(Balance.I.partyMaxCompanions - Balance.I.partyMinCompanions + 1);
+                var pool = new List<ClassId>((ClassId[])System.Enum.GetValues(typeof(ClassId)));
+                for (int i = 0; i < n && pool.Count > 0; i++)
+                {
+                    var pick = pool[rng.Next(pool.Count)];
+                    pool.Remove(pick);
+                    Party.Add(pick);
+                }
+            }
+            foreach (var id in Party) PartyHp.Add(RunData.Class(id).Hp);
             Deck = Cards.StarterDeck();
             // 맵은 독립 서브시드 — 파티 생성 RNG 소비량이 바뀌어도 같은 시드의 맵은 유지된다
             Map = RunData.GenerateMap(new System.Random(seed * 613 + 101));
@@ -75,7 +103,8 @@ namespace Tanker
 
         public void RestAll(float ratio)
         {
-            TankHp = System.Math.Min(TankMax, TankHp + (int)(TankMax * ratio));
+            if (Has(RelicId.WaterSkin)) ratio += Balance.I.relicWaterSkin;
+            TankHp = System.Math.Min(TankMaxHp, TankHp + (int)(TankMaxHp * ratio));
             for (int i = 0; i < Party.Count; i++)
             {
                 if (PartyHp[i] <= 0) continue;
@@ -85,17 +114,40 @@ namespace Tanker
         }
     }
 
+    /// 런 자동 저장 — 노드 완료마다 저장, 타이틀 "이어하기" (모바일 중단 대응)
+    public static class RunSave
+    {
+        const string Key = "run.save";
+
+        public static void Save(RunState run) =>
+            UnityEngine.PlayerPrefs.SetString(Key, UnityEngine.JsonUtility.ToJson(run));
+
+        public static bool Has() => UnityEngine.PlayerPrefs.HasKey(Key);
+
+        public static RunState Load()
+        {
+            try
+            {
+                var run = UnityEngine.JsonUtility.FromJson<RunState>(UnityEngine.PlayerPrefs.GetString(Key));
+                return run != null && run.Map != null && run.Map.Count > 0 ? run : null;
+            }
+            catch { return null; }
+        }
+
+        public static void Clear() => UnityEngine.PlayerPrefs.DeleteKey(Key);
+    }
+
     public class UnitDef
     {
         public string NameKey, Sheet;
         public int Hp, Power, AoePower, ChargeOffset, Thorns;
         public AiKind Ai;
-        public bool Lifesteal;
+        public bool Lifesteal, Aura;
 
         public UnitDef(string nameKey, string sheet, int hp, int power, AiKind ai, int chargeOffset = 0, int aoePower = 0,
-                       int thorns = 0, bool lifesteal = false)
+                       int thorns = 0, bool lifesteal = false, bool aura = false)
         { NameKey = nameKey; Sheet = sheet; Hp = hp; Power = power; Ai = ai; ChargeOffset = chargeOffset; AoePower = aoePower;
-          Thorns = thorns; Lifesteal = lifesteal; }
+          Thorns = thorns; Lifesteal = lifesteal; Aura = aura; }
     }
 
     public class EncounterDef
@@ -189,12 +241,14 @@ namespace Tanker
             var b = Balance.I;
             switch (id)
             {
-                case ClassId.Warrior: return new ClassDef { Id = id, LocKey = "class.warrior", Sheet = "warrior", Hp = b.warriorHp, Power = b.warriorPower };
-                case ClassId.Rogue: return new ClassDef { Id = id, LocKey = "class.rogue", Sheet = "dps", Hp = b.rogueHp, Power = b.roguePower };
-                case ClassId.Mage: return new ClassDef { Id = id, LocKey = "class.mage", Sheet = "mage", Hp = b.mageHp, Power = b.magePower };
-                case ClassId.Ranger: return new ClassDef { Id = id, LocKey = "class.ranger", Sheet = "ranger", Hp = b.rangerHp, Power = b.rangerPower };
-                case ClassId.Assassin: return new ClassDef { Id = id, LocKey = "class.assassin", Sheet = "assassin", Hp = b.assassinHp, Power = b.assassinPower };
-                case ClassId.Beastkin: return new ClassDef { Id = id, LocKey = "class.beastkin", Sheet = "beastkin", Hp = b.beastkinHp, Power = b.beastkinPower };
+                case ClassId.Warrior: return new ClassDef { Id = id, LocKey = "class.warrior", Sheet = "warrior", Hp = b.warriorHp, Power = b.warriorPower, Trait = Trait.Momentum };
+                case ClassId.Rogue: return new ClassDef { Id = id, LocKey = "class.rogue", Sheet = "dps", Hp = b.rogueHp, Power = b.roguePower, Trait = Trait.GoldOnKill };
+                case ClassId.Mage: return new ClassDef { Id = id, LocKey = "class.mage", Sheet = "mage", Hp = b.mageHp, Power = b.magePower, Trait = Trait.ArcaneNova };
+                case ClassId.Ranger: return new ClassDef { Id = id, LocKey = "class.ranger", Sheet = "ranger", Hp = b.rangerHp, Power = b.rangerPower, Trait = Trait.Sniper };
+                case ClassId.Assassin: return new ClassDef { Id = id, LocKey = "class.assassin", Sheet = "assassin", Hp = b.assassinHp, Power = b.assassinPower, Trait = Trait.FirstStrike };
+                case ClassId.Beastkin: return new ClassDef { Id = id, LocKey = "class.beastkin", Sheet = "beastkin", Hp = b.beastkinHp, Power = b.beastkinPower, Trait = Trait.Devour };
+                case ClassId.Warden: return new ClassDef { Id = id, LocKey = "class.warden", Sheet = "warden", Hp = b.wardenHp, Power = b.wardenPower, Trait = Trait.FullHpDouble };
+                case ClassId.Shadow: return new ClassDef { Id = id, LocKey = "class.shadow", Sheet = "shadow", Hp = b.shadowHp, Power = b.shadowPower, Trait = Trait.KillChain };
                 case ClassId.Paladin: return new ClassDef { Id = id, LocKey = "class.paladin", Sheet = "paladin", Hp = b.paladinHp, Power = b.paladinPower, Trait = Trait.TankHealOnHit };
                 case ClassId.Berserker: return new ClassDef { Id = id, LocKey = "class.berserker", Sheet = "berserker", Hp = b.berserkerHp, Power = b.berserkerPower, Trait = Trait.Frenzy };
                 case ClassId.Bard: return new ClassDef { Id = id, LocKey = "class.bard", Sheet = "bard", Hp = b.bardHp, Power = b.bardPower, Trait = Trait.Cleanse };
@@ -208,7 +262,7 @@ namespace Tanker
         class EnemyPick
         {
             public string Key, Sheet; public int Hp, Power, Cost; public AiKind Ai;
-            public int Thorns; public bool Lifesteal;
+            public int Thorns; public bool Lifesteal, Aura;
         }
 
         static List<EnemyPick> EnemyPool()
@@ -228,6 +282,9 @@ namespace Tanker
                 new EnemyPick { Key = "unit.golem", Sheet = "golem", Hp = b.golemHp, Power = b.golemPower, Ai = AiKind.LowestBackliner, Cost = 3, Thorns = b.golemThorns },
                 new EnemyPick { Key = "unit.bat", Sheet = "bat", Hp = b.batHp, Power = b.batPower, Ai = AiKind.LowestBackliner, Cost = 1, Lifesteal = true },
                 new EnemyPick { Key = "unit.necro", Sheet = "necro", Hp = b.necroHp, Power = 0, Ai = AiKind.EnemyHealer, Cost = 3 },
+                new EnemyPick { Key = "unit.chief", Sheet = "chief", Hp = b.chiefHp, Power = b.chiefPower, Ai = AiKind.LowestBackliner, Cost = 3, Aura = true },
+                new EnemyPick { Key = "unit.bomber", Sheet = "bomber", Hp = b.bomberHp, Power = 0, Ai = AiKind.Bomber, Cost = 3 },
+                new EnemyPick { Key = "unit.thief", Sheet = "thief", Hp = b.thiefHp, Power = 0, Ai = AiKind.Thief, Cost = 2 },
             };
         }
 
@@ -302,7 +359,7 @@ namespace Tanker
                 var p = picked[i];
                 units[i] = new UnitDef(p.Key, p.Sheet, ScaledHp(p.Hp, stage), ScaledPower(p.Power, stage),
                                        p.Ai, chargeOffset: p.Ai == AiKind.BruteCycle ? (bruteOffset++ % 2) : 0,
-                                       thorns: p.Thorns, lifesteal: p.Lifesteal);
+                                       thorns: p.Thorns, lifesteal: p.Lifesteal, aura: p.Aura);
             }
             return new EncounterDef
             {

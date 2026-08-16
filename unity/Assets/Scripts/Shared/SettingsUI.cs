@@ -40,7 +40,7 @@ namespace Tanker
             UiKit.MakeSlider("sfxS", frame, new Vector2(110, 160), new Vector2(420, 30), AudioKit.SfxVolume, v => AudioKit.SfxVolume = v);
 
             // 언어 전환
-            UiKit.Btn("lang", frame, new Vector2(0, 20), new Vector2(680, 100), Loc.T("set.lang"), () =>
+            UiKit.Btn("lang", frame, new Vector2(0, 30), new Vector2(680, 100), Loc.T("set.lang"), () =>
             {
                 Loc.SetLang(Loc.Lang == Loc.KO ? Loc.EN : Loc.KO);
                 Object.Destroy(canvasGo);
@@ -49,10 +49,14 @@ namespace Tanker
                 Open(onRedraw, onReturnTitle); // 새 언어로 다시 연다
             }, 32, center: true);
 
+            // 게임 방법 (v0.7 온보딩)
+            UiKit.Btn("howto", frame, new Vector2(0, -90), new Vector2(680, 100), Loc.T("title.help"),
+                () => HelpUI.Open(), 32, center: true);
+
             // 타이틀 복귀 (2단 확인)
             if (onReturnTitle != null)
             {
-                var titleBtn = UiKit.Btn("toTitle", frame, new Vector2(0, -120), new Vector2(680, 100), Loc.T("set.toTitle"), null, 32, center: true);
+                var titleBtn = UiKit.Btn("toTitle", frame, new Vector2(0, -210), new Vector2(680, 100), Loc.T("set.toTitle"), null, 32, center: true);
                 var titleTxt = titleBtn.GetComponentInChildren<Text>();
                 titleBtn.onClick.AddListener(() =>
                 {

@@ -11,6 +11,8 @@ namespace Tanker
     {
         public RunState run;              // 시뮬레이션·디버그 접근용
         List<ShopItem> shop;
+        RelicId? shopRelic;               // 이번 상점의 유물 매물 (v0.7)
+        bool shopRelicSold;
         RectTransform root;
         RectTransform screen;
         GameObject battleGo;
@@ -112,17 +114,38 @@ namespace Tanker
 
             Deco("tank-idle", new Vector2(0, 40), new Vector2(420, 470), animate: true);
 
-            UiKit.Btn("start", screen, new Vector2(0, -480), new Vector2(520, 130), Loc.T("title.start"), () => StartRun(), 44, center: true);
-            UiKit.Label("ver", screen, new Vector2(0, -840), new Vector2(800, 40), Loc.T("title.ver"), 26, UiKit.Hex("8f86ad"), center: true);
+            bool canContinue = RunSave.Has();
+            UiKit.Btn("start", screen, new Vector2(0, canContinue ? -400 : -480), new Vector2(520, 130),
+                Loc.T("title.start"), () => StartRun(), 44, center: true);
+            if (canContinue)
+                UiKit.Btn("continue", screen, new Vector2(0, -560), new Vector2(520, 120),
+                    Loc.T("title.continue"), () => ContinueRun(), 38, center: true);
+            UiKit.Btn("help", screen, new Vector2(0, canContinue ? -710 : -640), new Vector2(360, 96),
+                Loc.T("title.help"), () => HelpUI.Open(), 30, center: true);
+            UiKit.Label("ver", screen, new Vector2(0, -860), new Vector2(800, 40), Loc.T("title.ver"), 26, UiKit.Hex("8f86ad"), center: true);
         }
 
         public void StartRun()
         {
             int seed = System.Environment.TickCount & 0x7fffffff;
-            run = new RunState(seed);
+            bool firstRun = PlayerPrefs.GetInt("runs.started", 0) == 0;
+            PlayerPrefs.SetInt("runs.started", PlayerPrefs.GetInt("runs.started", 0) + 1);
+            RunSave.Clear();
+            run = new RunState(seed, firstRun);
             shop = RunData.MakeShop();
-            Debug.Log("[Flow] 런 시작 — 시드 " + seed + ", 파티 " + run.Party.Count + "명");
+            Debug.Log("[Flow] 런 시작 — 시드 " + seed + ", 파티 " + run.Party.Count + "명" + (firstRun ? " (첫 원정 고정)" : ""));
+            if (firstRun) HelpUI.Open(); // 첫 원정 — 게임 방법 자동 안내
             ShowParty();
+        }
+
+        public void ContinueRun()
+        {
+            var loaded = RunSave.Load();
+            if (loaded == null) { ShowTitle(); return; }
+            run = loaded;
+            shop = RunData.MakeShop();
+            Debug.Log("[Flow] 이어하기 — 시드 " + run.Seed + ", 층 " + run.FloorReached);
+            ShowMap();
         }
 
         // ---------- 파티 소개 ----------
@@ -134,8 +157,14 @@ namespace Tanker
             Background(0.55f);
             Gear();
             Banner(Loc.T("party.h1"), 740);
-            UiKit.Label("desc", screen, new Vector2(0, 630), new Vector2(960, 50),
-                Loc.T("party.desc"), 30, UiKit.Hex("cfc8e8"), center: true);
+            // 구성 규칙을 숨기지 않는다 — "왜 이 파티인가"에 대한 답 (친절성 검사)
+            bool hasHealer = false;
+            foreach (var id in run.Party) if (RunData.Class(id).IsHealer) hasHealer = true;
+            UiKit.Label("desc", screen, new Vector2(0, 640), new Vector2(980, 44),
+                Loc.F("party.desc2", run.Party.Count, System.Enum.GetValues(typeof(ClassId)).Length), 27, UiKit.Hex("cfc8e8"), center: true);
+            if (!hasHealer)
+                UiKit.Label("noheal", screen, new Vector2(0, 596), new Vector2(980, 40),
+                    Loc.T("party.noHealer"), 26, UiKit.Hex("e8895e"), center: true);
 
             float y = 450;
             DrawPartyRow(Loc.T("unit.tank"), "tank", RunState.TankMax, 0, true, y, Trait.None);
@@ -193,6 +222,15 @@ namespace Tanker
             }
             UiKit.Label("gold", screen, new Vector2(0, 495), new Vector2(940, 36),
                 run.Gold + "G   ·   " + Loc.F("map.deck", run.Deck.Count), 26, UiKit.Hex("ffd75e"), center: true);
+
+            // 유물 칩 행 (v0.7)
+            if (run.Relics.Count > 0)
+            {
+                string chips = "";
+                foreach (var r in run.Relics) chips += (chips == "" ? "" : "  ·  ") + Loc.T("relic." + r);
+                UiKit.Label("relics", screen, new Vector2(0, 458), new Vector2(1000, 32),
+                    "<color=#c9a44a>" + chips + "</color>", 21, Color.white, center: true);
+            }
 
             // 분기 그래프 — 연결선 먼저(현재 방에서 나가는 길은 금색), 그 위에 방
             var reach = run.Reachable();
@@ -322,14 +360,33 @@ namespace Tanker
                 case NodeType.Boss:
                     StartBattle(RunData.GetEncounter(run));
                     break;
-                case NodeType.Event: ShowEvent(); break;
+                case NodeType.Event:
+                    // 이벤트 3종 — 시드 결정: 가시 함정 / 수상한 제단 / 떠돌이 학자 (v0.7 탐험 다양화)
+                    switch (new System.Random(run.Seed * 389 + run.Cur * 53).Next(3))
+                    {
+                        case 0: ShowEvent(); break;
+                        case 1: ShowAltar(); break;
+                        default: ShowScholar(); break;
+                    }
+                    break;
                 case NodeType.Rest: ShowRest(); break;
-                case NodeType.Shop: shop = RunData.MakeShop(); ShowShop(); break; // 상점마다 새 재고
+                case NodeType.Shop:
+                    shop = RunData.MakeShop(); // 상점마다 새 재고
+                    if (run.Has(RelicId.MerchantSeal))
+                        foreach (var it in shop) it.Price = Mathf.RoundToInt(it.Price * (1f - Balance.I.relicMerchantSeal));
+                    shopRelic = RandomNewRelic();
+                    shopRelicSold = false;
+                    ShowShop();
+                    break;
                 case NodeType.Treasure: ShowTreasure(); break;
             }
         }
 
-        void Advance() => ShowMap();
+        void Advance()
+        {
+            RunSave.Save(run); // 방 완료마다 자동 저장 — 중단해도 이어하기 (모바일 필수)
+            ShowMap();
+        }
 
         // ---------- 보물 상자 (v0.6) ----------
 
@@ -338,6 +395,63 @@ namespace Tanker
             int got = Balance.I.treasureGold;
             run.Gold += got;
             ShowCardRewardInner(true, got);
+        }
+
+        // ---------- 유물 (v0.7) ----------
+
+        RelicId? RandomNewRelic()
+        {
+            var pool = new List<RelicId>();
+            foreach (RelicId r in System.Enum.GetValues(typeof(RelicId)))
+                if (!run.Has(r)) pool.Add(r);
+            if (pool.Count == 0) return null;
+            var rng = new System.Random(run.Seed * 263 + run.Cur * 31);
+            return pool[rng.Next(pool.Count)];
+        }
+
+        /// 엘리트 승리 보상 — 미보유 유물 확정 획득 (전부 보유 시 골드 대체)
+        public void ShowRelicGain()
+        {
+            var pick = RandomNewRelic();
+            if (pick == null) { run.Gold += Balance.I.relicDupGold; ShowCardReward(); return; }
+            run.AddRelic(pick.Value);
+            ShowRelicScreen(pick.Value, () => ShowCardReward());
+        }
+
+        void ShowRelicScreen(RelicId r, System.Action next)
+        {
+            currentScreen = () => ShowRelicScreen(r, next);
+            Clear();
+            Background(0.6f);
+            Gear();
+            Banner(Loc.T("relic.h1"), 620);
+            var chip = UiKit.FramedPanel("relicChip", screen, new Vector2(0, 260), new Vector2(700, 340), center: true);
+            chip.raycastTarget = false;
+            UiKit.Label("rname", screen, new Vector2(0, 350), new Vector2(620, 60),
+                Loc.T("relic." + r), 44, UiKit.Hex("ffd75e"), bold: true, center: true);
+            UiKit.Label("rdesc", screen, new Vector2(0, 230), new Vector2(600, 160),
+                RelicDesc(r), 30, Color.white, center: true);
+            UiKit.Label("rhint", screen, new Vector2(0, 40), new Vector2(900, 40),
+                Loc.T("relic.hint"), 24, UiKit.Hex("8f86ad"), center: true);
+            UiKit.Btn("go", screen, new Vector2(0, -240), new Vector2(460, 125), Loc.T("result.continue"), () => next(), 40, center: true);
+        }
+
+        public static string RelicDesc(RelicId r)
+        {
+            var b = Balance.I;
+            switch (r)
+            {
+                case RelicId.ThornShield: return Loc.F("relic.ThornShield.desc", b.relicThornShield);
+                case RelicId.WarBanner: return Loc.F("relic.WarBanner.desc", b.relicWarBanner);
+                case RelicId.GoldMagnet: return Loc.F("relic.GoldMagnet.desc", b.relicGoldMagnet);
+                case RelicId.WaterSkin: return Loc.F("relic.WaterSkin.desc", (int)(b.relicWaterSkin * 100));
+                case RelicId.VictoryMeal: return Loc.F("relic.VictoryMeal.desc", b.relicVictoryMeal);
+                case RelicId.IronHeart: return Loc.F("relic.IronHeart.desc", b.relicIronHeart);
+                case RelicId.MerchantSeal: return Loc.F("relic.MerchantSeal.desc", (int)(b.relicMerchantSeal * 100));
+                case RelicId.OldStandard: return Loc.F("relic.OldStandard.desc", b.relicOldStandard);
+                case RelicId.GuardCharm: return Loc.F("relic.GuardCharm.desc", b.relicGuardCharm);
+                default: return Loc.T("relic." + r + ".desc");
+            }
         }
 
         // ---------- 전투 ----------
@@ -368,10 +482,12 @@ namespace Tanker
                 run.BattleIndex++;
             }
             bool wasBoss = run.CurNode.Type == NodeType.Boss;
+            bool wasElite = run.CurNode.Type == NodeType.Elite;
             Destroy(battleGo);
             battleGo = null;
             if (!won) ShowEnding(false);
             else if (wasBoss) ShowEnding(true);
+            else if (wasElite) ShowRelicGain(); // 엘리트 — 유물 확정 보상 후 카드 보상
             else ShowCardReward();
         }
 
@@ -403,7 +519,7 @@ namespace Tanker
             // 세로 대형 카드 3장 나란히 — 전투 핸드와 같은 인상
             for (int i = 0; i < offered.Count; i++)
             {
-                var card = offered[i];
+                var card = new Card(offered[i]);
                 float x = (i - (offered.Count - 1) / 2f) * 350f;
                 var btn = UiKit.Btn("reward" + i, screen, new Vector2(x, 130), new Vector2(320, 460),
                     Cards.NameOf(card) + "\n\n<size=24>" + Cards.DescOf(card) + "</size>", () =>
@@ -417,7 +533,17 @@ namespace Tanker
                 txt.rectTransform.sizeDelta = new Vector2(272, 420);
             }
 
-            UiKit.Btn("skip", screen, new Vector2(0, -360), new Vector2(420, 110), Loc.T("reward.skip"), () => Advance(), 34, center: true);
+            // 보물 상자 — 카드 대신 유물 선택지 (v0.7)
+            if (treasure && RandomNewRelic() != null)
+                UiKit.Btn("relicOpt", screen, new Vector2(0, -240), new Vector2(560, 110), Loc.T("treasure.relic"), () =>
+                {
+                    var pick = RandomNewRelic();
+                    if (pick == null) { Advance(); return; }
+                    run.AddRelic(pick.Value);
+                    ShowRelicScreen(pick.Value, () => Advance());
+                }, 32, center: true);
+
+            UiKit.Btn("skip", screen, new Vector2(0, -380), new Vector2(420, 110), Loc.T("reward.skip"), () => Advance(), 34, center: true);
         }
 
         // ---------- 이벤트: 가시 함정 복도 ----------
@@ -472,18 +598,156 @@ namespace Tanker
                 Loc.T("ev.hint"), 26, UiKit.Hex("8f86ad"), center: true);
         }
 
+        // ---------- 이벤트 2·3: 수상한 제단 / 떠돌이 학자 (v0.7) ----------
+
+        public void ShowAltar()
+        {
+            currentScreen = ShowAltar;
+            Clear();
+            Background(0.65f);
+            Gear();
+            Banner(Loc.T("altar.h1"), 660);
+            Deco("necro-idle", new Vector2(0, 440), new Vector2(240, 260));
+            var descP = UiKit.FramedPanel("descP", screen, new Vector2(0, 220), new Vector2(940, 170), center: true);
+            descP.raycastTarget = false;
+            UiKit.Label("desc", screen, new Vector2(0, 220), new Vector2(880, 150),
+                Loc.F("altar.desc", Balance.I.altarHpCost), 31, UiKit.Hex("cfc8e8"), center: true);
+
+            var offer = UiKit.Btn("offer", screen, new Vector2(0, 20), new Vector2(860, 122),
+                Loc.F("altar.offer", Balance.I.altarHpCost), () =>
+                {
+                    run.TankHp -= Balance.I.altarHpCost;
+                    if (run.TankHp <= 0) { ShowEnding(false); return; }
+                    var pick = RandomNewRelic();
+                    if (pick == null) { run.Gold += Balance.I.relicDupGold; Advance(); return; }
+                    run.AddRelic(pick.Value);
+                    ShowRelicScreen(pick.Value, () => Advance());
+                }, 33, center: true);
+            offer.interactable = run.TankHp > Balance.I.altarHpCost;
+
+            UiKit.Btn("ignore", screen, new Vector2(0, -140), new Vector2(860, 115), Loc.T("altar.ignore"), () => Advance(), 33, center: true);
+        }
+
+        public void ShowScholar()
+        {
+            currentScreen = ShowScholar;
+            Clear();
+            Background(0.6f);
+            Gear();
+            Banner(Loc.T("scholar.h1"), 660);
+            Deco("bard-idle", new Vector2(0, 440), new Vector2(220, 260));
+            var descP = UiKit.FramedPanel("descP", screen, new Vector2(0, 220), new Vector2(940, 170), center: true);
+            descP.raycastTarget = false;
+            UiKit.Label("desc", screen, new Vector2(0, 220), new Vector2(880, 150),
+                Loc.T("scholar.desc"), 31, UiKit.Hex("cfc8e8"), center: true);
+
+            var learnBtn = UiKit.Btn("learn", screen, new Vector2(0, 20), new Vector2(860, 122),
+                Loc.T("scholar.remove"), () => ShowScholarRemove(), 33, center: true);
+            learnBtn.interactable = run.Deck.Count > 1;
+            UiKit.Btn("ignore", screen, new Vector2(0, -140), new Vector2(860, 115), Loc.T("altar.ignore"), () => Advance(), 33, center: true);
+        }
+
+        void ShowScholarRemove()
+        {
+            currentScreen = ShowScholarRemove;
+            Clear();
+            Background(0.6f);
+            Gear();
+            Banner(Loc.T("scholar.pick"), 700);
+            for (int i = 0; i < run.Deck.Count && i < 10; i++)
+            {
+                int idx = i;
+                float y = 500 - (i / 2) * 130;
+                float x = i % 2 == 0 ? -230 : 230;
+                UiKit.Btn("sc" + i, screen, new Vector2(x, y), new Vector2(420, 110),
+                    Cards.NameOf(run.Deck[i]), () =>
+                    {
+                        if (run.Deck.Count <= 1) return;
+                        run.Deck.RemoveAt(idx);
+                        Advance();
+                    }, 30, center: true);
+            }
+            UiKit.Btn("back", screen, new Vector2(0, -600), new Vector2(420, 105), Loc.T("remove.back"), () => ShowScholar(), 32, center: true);
+        }
+
         // ---------- 휴식 / 상점 ----------
 
+        /// 휴식 — 회복 또는 카드 강화 택1 (StS 캠프파이어, v0.7 깊이의 핵)
         public void ShowRest()
         {
-            int beforeTank = run.TankHp;
-            run.RestAll(Balance.I.restRatio);
-            currentScreen = () => ShowRestScreen(run.TankHp - beforeTank);
-            ShowRestScreen(run.TankHp - beforeTank);
+            currentScreen = ShowRest;
+            Clear();
+            Background(0.5f);
+            Gear();
+            Banner(Loc.T("rest.h1"), 620);
+            Deco("tank-idle", new Vector2(-120, 330), new Vector2(280, 320), animate: true);
+            Deco("icon-rest", new Vector2(130, 300), new Vector2(190, 190));
+            UiKit.Label("desc", screen, new Vector2(0, 90), new Vector2(920, 50),
+                Loc.T("rest.choose"), 30, UiKit.Hex("cfc8e8"), center: true);
+
+            int pct = (int)((Balance.I.restRatio + (run.Has(RelicId.WaterSkin) ? Balance.I.relicWaterSkin : 0)) * 100);
+            UiKit.Btn("heal", screen, new Vector2(0, -60), new Vector2(720, 125), Loc.F("rest.heal", pct), () =>
+            {
+                int before = run.TankHp;
+                run.RestAll(Balance.I.restRatio);
+                ShowRestScreen(run.TankHp - before);
+            }, 34, center: true);
+
+            bool upgradable = false;
+            foreach (var c in run.Deck) if (!c.Plus) upgradable = true;
+            var upBtn = UiKit.Btn("upgrade", screen, new Vector2(0, -220), new Vector2(720, 125), Loc.T("rest.upgrade"), () => ShowUpgradePick(), 34, center: true);
+            upBtn.interactable = upgradable;
+        }
+
+        /// 강화할 카드 선택 — 미강화 카드만 나열
+        public void ShowUpgradePick()
+        {
+            currentScreen = ShowUpgradePick;
+            Clear();
+            Background(0.6f);
+            Gear();
+            Banner(Loc.T("up.h1"), 700);
+            UiKit.Label("desc", screen, new Vector2(0, 590), new Vector2(940, 44),
+                Loc.T("up.desc"), 27, UiKit.Hex("cfc8e8"), center: true);
+
+            int shown = 0;
+            for (int i = 0; i < run.Deck.Count && shown < 10; i++)
+            {
+                if (run.Deck[i].Plus) continue;
+                int idx = i;
+                float y = 460 - (shown / 2) * 135;
+                float x = shown % 2 == 0 ? -235 : 235;
+                var c = run.Deck[i];
+                UiKit.Btn("up" + i, screen, new Vector2(x, y), new Vector2(430, 118),
+                    Cards.NameOf(c) + "\n<size=20>" + Cards.ShortDesc(new Card(c.Type, true)) + "</size>", () =>
+                    {
+                        run.Deck[idx] = new Card(run.Deck[idx].Type, true);
+                        AudioKit.Heal();
+                        ShowUpgradeDone(run.Deck[idx]);
+                    }, 28, center: true);
+                shown++;
+            }
+
+            UiKit.Btn("back", screen, new Vector2(0, -600), new Vector2(420, 105), Loc.T("remove.back"), () => ShowRest(), 32, center: true);
+        }
+
+        void ShowUpgradeDone(Card c)
+        {
+            currentScreen = () => ShowUpgradeDone(c);
+            Clear();
+            Background(0.55f);
+            Gear();
+            Banner(Loc.T("up.done"), 560);
+            var chip = UiKit.FramedPanel("upChip", screen, new Vector2(0, 180), new Vector2(560, 420), center: true);
+            chip.raycastTarget = false;
+            UiKit.Label("upName", screen, new Vector2(0, 300), new Vector2(520, 60), Cards.NameOf(c), 46, Color.white, bold: true, center: true);
+            UiKit.Label("upDesc", screen, new Vector2(0, 140), new Vector2(480, 200), Cards.DescOf(c), 30, UiKit.Hex("8fd4a8"), center: true);
+            UiKit.Btn("go", screen, new Vector2(0, -260), new Vector2(460, 125), Loc.T("rest.go"), () => Advance(), 40, center: true);
         }
 
         void ShowRestScreen(int healed)
         {
+            currentScreen = () => ShowRestScreen(healed);
             Clear();
             Background(0.5f);
             Gear();
@@ -509,10 +773,10 @@ namespace Tanker
             for (int i = 0; i < shop.Count; i++)
             {
                 var item = shop[i];
-                float y = 440 - i * 145;
+                float y = 452 - i * 130;
                 string label = item.Bought ? Loc.F("shop.soldout", item.Name)
                     : Loc.F("shop.item", item.Name, item.Price, item.Desc);
-                var btn = UiKit.Btn("item" + i, screen, new Vector2(0, y), new Vector2(880, 128), label, () =>
+                var btn = UiKit.Btn("item" + i, screen, new Vector2(0, y), new Vector2(880, 118), label, () =>
                 {
                     if (item.Bought || run.Gold < item.Price) return;
                     run.Gold -= item.Price;
@@ -523,11 +787,29 @@ namespace Tanker
                 btn.interactable = !item.Bought && run.Gold >= item.Price;
             }
 
-            var removeBtn = UiKit.Btn("removeCard", screen, new Vector2(0, -180), new Vector2(880, 110),
+            // 유물 매물 (v0.7)
+            if (shopRelic != null)
+            {
+                int rPrice = Mathf.RoundToInt(Balance.I.relicPrice
+                    * (run.Has(RelicId.MerchantSeal) ? 1f - Balance.I.relicMerchantSeal : 1f));
+                string rLabel = shopRelicSold ? Loc.F("shop.soldout", Loc.T("relic." + shopRelic.Value))
+                    : Loc.F("shop.relic", Loc.T("relic." + shopRelic.Value), rPrice, RelicDesc(shopRelic.Value));
+                var rBtn = UiKit.Btn("relicItem", screen, new Vector2(0, -60), new Vector2(880, 118), rLabel, () =>
+                {
+                    if (shopRelicSold || run.Gold < rPrice || shopRelic == null) return;
+                    run.Gold -= rPrice;
+                    shopRelicSold = true;
+                    run.AddRelic(shopRelic.Value);
+                    ShowShop();
+                }, 27, center: true);
+                rBtn.interactable = !shopRelicSold && run.Gold >= rPrice;
+            }
+
+            var removeBtn = UiKit.Btn("removeCard", screen, new Vector2(0, -200), new Vector2(880, 110),
                 Loc.F("shop.remove", Balance.I.cardRemovePrice), () => ShowRemoveCard(), 30, center: true);
             removeBtn.interactable = run.Gold >= Balance.I.cardRemovePrice && run.Deck.Count > 1;
 
-            UiKit.Btn("leave", screen, new Vector2(0, -380), new Vector2(520, 110), Loc.T("shop.leave"), () => Advance(), 36, center: true);
+            UiKit.Btn("leave", screen, new Vector2(0, -400), new Vector2(520, 110), Loc.T("shop.leave"), () => Advance(), 36, center: true);
         }
 
         // ---------- 카드 제거 ----------
@@ -564,6 +846,7 @@ namespace Tanker
 
         public void ShowEnding(bool won)
         {
+            RunSave.Clear(); // 런 종료 — 이어하기 소멸
             currentScreen = () => ShowEnding(won);
             Clear();
             Background(won ? 0.3f : 0.78f);

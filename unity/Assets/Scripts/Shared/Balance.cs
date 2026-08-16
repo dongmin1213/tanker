@@ -103,6 +103,56 @@ namespace Tanker
         // v0.6 — 전투 핸드
         public int handSize = 4;
 
+        // v0.7 — 카드 강화 (+) 수치
+        public int tauntDurationPlus = 3;
+        public int coverPlusReduce = 2;
+        public int braceHealPlus = 5;
+        public int shieldPlusCharges = 2;
+        public int devotionAmountPlus = 7;
+        public int rallyPlusHeal = 2;
+        public int phalanxReducePlus = 3;
+        public int oathTurnsPlus = 3;
+        public int ironWillCapPlus = 2;
+        public int markPlusReduce = 1;
+        public int respiteHealPlus = 6;
+
+        // v0.7 — 신규 카드
+        public int thornStanceDmg = 2; public int thornStanceDmgPlus = 3;
+        public int firstAidHeal = 3; public int firstAidHealPlus = 5;
+        public int warCryTurns = 1; public int warCryPlusHeal = 2;
+
+        // v0.7 — 유물 (획득처: 엘리트 확정, 보물 택1, 상점)
+        public int relicPrice = 45;
+        public int relicThornShield = 1;   // 가시 방패: 탱커 직격 반사
+        public int relicWarBanner = 1;     // 군기: 첫 턴 아군 공격 +
+        public int relicGoldMagnet = 15;   // 금화 자석: 전투 보상 +G
+        public float relicWaterSkin = 0.15f; // 물주머니: 휴식 회복 +비율
+        public int relicVictoryMeal = 3;   // 승전 축배: 승리 시 탱커 회복
+        public int relicIronHeart = 6;     // 강철 심장: 탱커 최대 HP +
+        public float relicMerchantSeal = 0.2f; // 상인 인장: 상점 할인
+        public int relicOldStandard = 1;   // 낡은 깃발: 도발 지속 +턴
+        public int relicGuardCharm = 1;    // 수호 부적: 낙인 분담 -
+
+        // v0.7 — 신규 적
+        public int chiefHp = 14; public int chiefPower = 3; public int chiefAura = 1;
+        public int bomberHp = 10; public int bomberFuse = 3; public int bomberBlast = 6;
+        public int thiefHp = 11; public int thiefSteal = 5;
+
+        // v0.7 — 신규 클래스
+        public int wardenHp = 21; public int wardenPower = 5;
+        public int shadowHp = 12; public int shadowPower = 6;
+
+        // v0.7 — 클래스 고유 특성 수치 (전 클래스 개성화)
+        public int momentumStep = 1;       // 전사: 같은 대상 연속 공격 시 +누적
+        public int killGold = 3;           // 도적: 처치 시 골드
+        public int novaEvery = 3;          // 마법사: N턴마다 전체 광역 (각 절반 피해)
+        public int devourHeal = 3;         // 수인: 처치 시 자가 회복
+        public int paladinTankHealPlus = 0; // (예약)
+
+        // v0.7 — 이벤트·기타
+        public int altarHpCost = 6;        // 수상한 제단: 탱커 HP를 바치고 유물
+        public int relicDupGold = 30;      // 유물이 다 떨어졌을 때 대체 골드
+
         public int guardPrice = 40;
         public int guardValue = 2;
         public int coverPrice = 50;

@@ -130,26 +130,36 @@ namespace Tanker
             return btn;
         }
 
-        /// 코드 생성 슬라이더 (0~1) — 배경 바 + 채움 + 핸들
+        /// 코드 생성 슬라이더 (0~1) — 돌+금 테마: 금테 홈 트랙, 금색 채움, 프레임 노브, % 수치
         public static Slider MakeSlider(string name, RectTransform parent, Vector2 pos, Vector2 size,
                                         float value, System.Action<float> onChanged)
         {
             var rt = Rt(name, parent, pos, size, center: true);
-            var bg = Panel("bg", rt, Vector2.zero, size, Hex("241d33"), center: true);
+
+            // 트랙 — 어두운 홈 (버튼 프레임을 낮게 눌러 씀)
+            var bg = Panel("bg", rt, Vector2.zero, new Vector2(size.x, size.y + 14), new Color(0.55f, 0.55f, 0.6f), center: true);
+            if (ButtonSprite != null) { bg.sprite = ButtonSprite; bg.type = Image.Type.Sliced; }
+            else bg.color = Hex("241d33");
             bg.raycastTarget = true;
 
             var fillArea = Rt("fillArea", rt, Vector2.zero, Vector2.zero, center: true);
             fillArea.anchorMin = Vector2.zero; fillArea.anchorMax = Vector2.one;
-            fillArea.offsetMin = Vector2.zero; fillArea.offsetMax = Vector2.zero;
-            var fill = Panel("fill", fillArea, Vector2.zero, Vector2.zero, Hex("8fd4a8"));
+            fillArea.offsetMin = new Vector2(8, 4); fillArea.offsetMax = new Vector2(-8, -4);
+            var fill = Panel("fill", fillArea, Vector2.zero, Vector2.zero, Hex("c9a44a"));
             fill.rectTransform.anchorMin = Vector2.zero; fill.rectTransform.anchorMax = Vector2.one;
             fill.rectTransform.offsetMin = Vector2.zero; fill.rectTransform.offsetMax = Vector2.zero;
             fill.raycastTarget = false;
 
             var handleArea = Rt("handleArea", rt, Vector2.zero, Vector2.zero, center: true);
             handleArea.anchorMin = Vector2.zero; handleArea.anchorMax = Vector2.one;
-            handleArea.offsetMin = new Vector2(17, 0); handleArea.offsetMax = new Vector2(-17, 0);
-            var handle = Panel("handle", handleArea, Vector2.zero, new Vector2(34, size.y + 26), Hex("ffd75e"), center: true);
+            handleArea.offsetMin = new Vector2(22, 0); handleArea.offsetMax = new Vector2(-22, 0);
+            var handle = Panel("handle", handleArea, Vector2.zero, new Vector2(44, size.y + 30), Color.white, center: true);
+            if (ButtonSprite != null) { handle.sprite = ButtonSprite; handle.type = Image.Type.Sliced; }
+            else handle.color = Hex("ffd75e");
+
+            // 현재 값 % — 트랙 오른쪽 밖
+            var pct = Label(name + "Pct", rt, new Vector2(size.x / 2 + 62, 0), new Vector2(110, 40),
+                Mathf.RoundToInt(value * 100) + "%", 26, Hex("ffd75e"), TextAnchor.MiddleLeft, center: true);
 
             var slider = rt.gameObject.AddComponent<Slider>();
             slider.targetGraphic = handle;
@@ -157,7 +167,11 @@ namespace Tanker
             slider.handleRect = handle.rectTransform;
             slider.minValue = 0f; slider.maxValue = 1f;
             slider.value = value;
-            slider.onValueChanged.AddListener(v => onChanged(v));
+            slider.onValueChanged.AddListener(v =>
+            {
+                pct.text = Mathf.RoundToInt(v * 100) + "%";
+                onChanged(v);
+            });
             return slider;
         }
 

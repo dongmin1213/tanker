@@ -18,7 +18,7 @@ namespace Tanker
         }
 
         /// hand/draw/discard에 -1을 주면 구성 부제를 생략한다 (전투 밖 열람용)
-        public static void Open(List<CardType> deck, int hand = -1, int draw = -1, int discard = -1)
+        public static void Open(List<Card> deck, int hand = -1, int draw = -1, int discard = -1)
         {
             if (openCanvas != null) return;
             var frame = UiKit.MakeCanvas("DeckViewCanvas", 85);
@@ -28,8 +28,8 @@ namespace Tanker
             var dim = UiKit.Panel("dim", frame, Vector2.zero, new Vector2(1400, 2500), new Color(0, 0, 0, 0.72f), center: true);
             dim.raycastTarget = true;
 
-            // 종류별 집계 (덱 순서 무관 — 셔플은 전투에서만 의미)
-            var counts = new Dictionary<CardType, int>();
+            // 종류·강화별 집계 (덱 순서 무관 — 셔플은 전투에서만 의미)
+            var counts = new Dictionary<Card, int>();
             foreach (var c in deck) counts[c] = counts.TryGetValue(c, out var n) ? n + 1 : 1;
 
             int rows = (counts.Count + 1) / 2;
