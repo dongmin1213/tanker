@@ -20,23 +20,34 @@ namespace Tanker
         int previewVersion = -1;
         readonly Dictionary<Unit, Vector2> posOf = new();
         Text turnText, savedText, logText, drawText, discardText, deckViewText, planText;
+        static Sprite cardBackCache;
+        static bool cardBackTried;
 
-        /// 더미 배지 — 미니 카드 프레임(카드백 에셋 우선) + 중앙 숫자, 탭하면 덱 열람
+        /// 더미 배지 — 미니 카드 프레임(카드백 에셋 우선, 정적 캐시) + 중앙 숫자, 탭하면 덱 열람
         Text MakePileBadge(string name, Vector2 pos, System.Action onTap)
         {
+            // 히트박스는 시각보다 넓게 (모바일 최소 터치 크기) — 실제 이미지는 자식으로
+            var hit = Panel(name + "Hit", root, pos + new Vector2(0, 8), new Vector2(96, 112), Color.clear);
+            hit.raycastTarget = true;
+            var hitBtn = hit.gameObject.AddComponent<Button>();
+            hitBtn.transition = Selectable.Transition.None;
+            hitBtn.onClick.AddListener(() => { AudioKit.Click(); onTap(); });
             var img = Panel(name, root, pos, new Vector2(58, 82), Color.white);
-            var back = Resources.Load<Texture2D>("Art/card-back");
-            if (back != null)
-                img.sprite = Sprite.Create(back, new Rect(0, 0, back.width, back.height), new Vector2(0.5f, 0.5f), 100f);
+            if (!cardBackTried)
+            {
+                cardBackTried = true;
+                var back = Resources.Load<Texture2D>("Art/card-back");
+                if (back != null)
+                    cardBackCache = Sprite.Create(back, new Rect(0, 0, back.width, back.height), new Vector2(0.5f, 0.5f), 100f);
+            }
+            if (cardBackCache != null) img.sprite = cardBackCache;
             else if (UiKit.CardSprite != null) { img.sprite = UiKit.CardSprite; img.type = Image.Type.Sliced; }
             else img.color = Hex("241d33");
-            var btn = img.gameObject.AddComponent<Button>();
-            btn.transition = Selectable.Transition.None;
-            btn.onClick.AddListener(() => { AudioKit.Click(); onTap(); });
+            img.raycastTarget = false; // 입력은 확장 히트박스가 받는다
             return Label(name + "N", img.rectTransform, Vector2.zero, new Vector2(58, 82), "", 30, Color.white, center: true);
         }
-        readonly Button[] cardBtns = new Button[4];
-        readonly Text[] cardTexts = new Text[4];
+        Button[] cardBtns;   // 크기 = balance.handSize (BuildLayout에서 생성)
+        Text[] cardTexts;
         Button goBtn;
         GameObject resultPanel;
         Text resultText, resultSubText, resultStatsText, resultBtnText;
@@ -45,6 +56,7 @@ namespace Tanker
         Sprite glowSprite;
         Sprite[] fxHit, fxHeal;
         float uiTick;
+        float cardW;
 
         class UnitView
         {
@@ -186,6 +198,7 @@ namespace Tanker
             var flowRef = Object.FindFirstObjectByType<GameFlow>();
             System.Action openDeck = () =>
             {
+                if (mgr.Phase != Phase.Player) return; // 해소 중 스냅샷 수치 어긋남 방지
                 if (flowRef != null) DeckViewUI.Open(flowRef.run.Deck, mgr.Hand.Count, mgr.DrawCount, mgr.DiscardCount);
             };
             var deckBtn = UiKit.Btn("deckView", root, new Vector2(128, 700), new Vector2(196, 52), "", () => openDeck(), 24);
@@ -242,17 +255,21 @@ namespace Tanker
             foreach (var a in mgr.Allies) MakeUnitView(a);
             foreach (var e in mgr.Enemies) MakeUnitView(e);
 
-            // 핸드 카드 4장(세로 대형 — 모바일 탭 타겟) + 전폭 진행 바
-            for (int i = 0; i < cardBtns.Length; i++)
+            // 핸드 카드 (balance.handSize장, 세로 대형 — 모바일 탭 타겟) + 전폭 진행 바
+            int hs = Mathf.Clamp(Balance.I.handSize, 1, 5);
+            cardBtns = new Button[hs];
+            cardTexts = new Text[hs];
+            cardW = Mathf.Min(240f, (1080f - 40f) / hs - 22f);
+            for (int i = 0; i < hs; i++)
             {
                 int idx = i;
-                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(147 + i * 262, 468), new Vector2(240, 360), "", () => mgr.PressCard(idx), 30);
+                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(540, 468), new Vector2(cardW, 360), "", () => mgr.PressCard(idx), 30);
                 if (UiKit.CardSprite != null) cardBtns[i].GetComponent<Image>().sprite = UiKit.CardSprite; // 카드 전용 프레임
                 cardTexts[i] = cardBtns[i].GetComponentInChildren<Text>();
                 cardTexts[i].horizontalOverflow = HorizontalWrapMode.Wrap;
-                cardTexts[i].rectTransform.sizeDelta = new Vector2(212, 340);
+                cardTexts[i].rectTransform.sizeDelta = new Vector2(cardW - 28, 340);
             }
-            goBtn = UiKit.Btn("go", root, new Vector2(540, 155), new Vector2(980, 130), Loc.T("skill.go"), () => mgr.EndTurn(), 42);
+            goBtn = UiKit.Btn("go", root, new Vector2(540, 155), new Vector2(830, 130), Loc.T("skill.go"), () => mgr.EndTurn(), 42); // 더미 배지와 입력 영역 분리
             Label("hintGo", root, new Vector2(540, 45), new Vector2(620, 40), Loc.T("hint.cards"), 20, Hex("8f86ad"));
 
             var flow = Object.FindFirstObjectByType<GameFlow>();
@@ -380,11 +397,16 @@ namespace Tanker
         void RefreshCards()
         {
             bool player = mgr.Phase == Phase.Player;
+            // 활성 카드 수 기준 중앙 정렬 — 덱이 얇아도 왼쪽에 몰리지 않게
+            int active = Mathf.Min(mgr.Hand.Count, cardBtns.Length);
+            float spacing = cardW + 22f;
+            float x0 = 540f - (active - 1) * spacing / 2f;
             for (int i = 0; i < cardBtns.Length; i++)
             {
                 bool has = i < mgr.Hand.Count;
                 cardBtns[i].gameObject.SetActive(has);
                 if (!has) continue;
+                ((RectTransform)cardBtns[i].transform).anchoredPosition = new Vector2(x0 + i * spacing, 468);
                 var card = mgr.Hand[i];
                 cardTexts[i].text = Cards.NameOf(card)
                     + "\n<size=19>" + BadgeOf(card) + "</size>"

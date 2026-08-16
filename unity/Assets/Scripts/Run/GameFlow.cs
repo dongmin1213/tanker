@@ -37,6 +37,7 @@ namespace Tanker
 
         void Clear()
         {
+            DeckViewUI.Close(); // 이전 화면에서 열린 덱 열람이 새 화면 위에 남지 않게
             animImg = null; animFrames = null;
             if (screen != null)
             {
@@ -304,8 +305,14 @@ namespace Tanker
             }
         }
 
+        int lastEnterFrame = -1;
+
         public void EnterNode(int id)
         {
+            if (!run.Reachable().Contains(id)) return; // 연결된 방만 (UI 밖 호출 안전망)
+            if (battleGo != null) return;              // 전투 중 상태 오염 방지
+            if (Time.frameCount == lastEnterFrame) return; // 멀티터치 동시 탭 — 같은 프레임 이중 진입 차단
+            lastEnterFrame = Time.frameCount;
             run.Cur = id;
             run.Visited.Add(id);
             switch (run.Map[id].Type)
@@ -330,7 +337,7 @@ namespace Tanker
         {
             int got = Balance.I.treasureGold;
             run.Gold += got;
-            ShowCardRewardInner(Loc.T("treasure.h1"), Loc.F("treasure.desc", got));
+            ShowCardRewardInner(true, got);
         }
 
         // ---------- 전투 ----------
@@ -370,17 +377,18 @@ namespace Tanker
 
         // ---------- 카드 보상 ----------
 
-        public void ShowCardReward() => ShowCardRewardInner(Loc.T("reward.h1"), Loc.T("reward.desc"));
+        public void ShowCardReward() => ShowCardRewardInner(false, 0);
 
-        void ShowCardRewardInner(string h1, string desc)
+        /// treasure/gold를 캡처 — 문자열이 아닌 인자를 캡처해야 언어 변경 재그리기가 새 언어로 나온다
+        void ShowCardRewardInner(bool treasure, int gold)
         {
-            currentScreen = () => ShowCardRewardInner(h1, desc);
+            currentScreen = () => ShowCardRewardInner(treasure, gold);
             Clear();
             Background(0.6f);
             Gear();
-            Banner(h1, 640);
+            Banner(treasure ? Loc.T("treasure.h1") : Loc.T("reward.h1"), 640);
             UiKit.Label("desc", screen, new Vector2(0, 530), new Vector2(920, 50),
-                desc, 30, UiKit.Hex("cfc8e8"), center: true);
+                treasure ? Loc.F("treasure.desc", gold) : Loc.T("reward.desc"), 30, UiKit.Hex("cfc8e8"), center: true);
 
             var rng = new System.Random(run.Seed * 397 + run.Cur * 71);
             var offered = new List<CardType>();

@@ -69,7 +69,8 @@ namespace Tanker
                 PartyHp.Add(RunData.Class(pick).Hp);
             }
             Deck = Cards.StarterDeck();
-            Map = RunData.GenerateMap(rng);
+            // 맵은 독립 서브시드 — 파티 생성 RNG 소비량이 바뀌어도 같은 시드의 맵은 유지된다
+            Map = RunData.GenerateMap(new System.Random(seed * 613 + 101));
         }
 
         public void RestAll(float ratio)
@@ -126,11 +127,14 @@ namespace Tanker
 
             for (int f = 0; f < floors; f++)
             {
-                int count = f == 0 || f >= floors - 2 ? 1 : 2 + rng.Next(2); // 시작·휴식·보스층은 1개, 중간은 2~3개
+                int count = f == 0 || f >= floors - 2
+                    ? 1 // 시작·보스 전 휴식·보스층은 1개
+                    : b.mapNodesMin + rng.Next(b.mapNodesMax - b.mapNodesMin + 1);
                 byFloor[f] = new List<MapNode>();
                 for (int i = 0; i < count; i++)
                 {
-                    float x = count == 1 ? 0 : count == 2 ? -140 + i * 280 : -230 + i * 230;
+                    float span = count == 2 ? 280f : 460f;
+                    float x = count == 1 ? 0 : -span / 2f + span / (count - 1) * i;
                     var node = new MapNode { Id = map.Count, Floor = f, X = x, Type = NodeType.Battle };
                     map.Add(node);
                     byFloor[f].Add(node);
@@ -173,10 +177,10 @@ namespace Tanker
             }
 
             Assign(NodeType.Elite, b.mapElites, b.eliteMinFloor);
-            Assign(NodeType.Shop, b.mapShops, 1);
-            Assign(NodeType.Treasure, b.mapTreasures, 1);
-            Assign(NodeType.Rest, b.mapRests, 2);
-            Assign(NodeType.Event, b.mapEvents, 1);
+            Assign(NodeType.Shop, b.mapShops, b.shopMinFloor);
+            Assign(NodeType.Treasure, b.mapTreasures, b.treasureMinFloor);
+            Assign(NodeType.Rest, b.mapRests, b.restMidMinFloor);
+            Assign(NodeType.Event, b.mapEvents, b.eventMinFloor);
             return map;
         }
 
@@ -252,7 +256,8 @@ namespace Tanker
         public static EncounterDef GetEncounter(RunState run)
         {
             var b = Balance.I;
-            int stage = run.BattleIndex;
+            // 스케일링은 층 기반 — 전투를 피해 달려도 깊이만큼 강해진다 (승전 수 기반은 회피 러시가 최적이 되는 구멍)
+            int stage = run.CurNode.Floor;
             bool elite = run.CurNode.Type == NodeType.Elite;
             var rng = new System.Random(run.Seed * 977 + run.Cur * 131);
 

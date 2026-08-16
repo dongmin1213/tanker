@@ -63,7 +63,7 @@ namespace Tanker
             ["title.name"] = new[] { "탱 커", "T A N K E R" },
             ["title.sub"] = new[] { "공격 스킬은 없다. 팀은 내가 지킨다.", "No attack skills. I protect the team." },
             ["title.start"] = new[] { "던전에 들어간다", "Enter the Dungeon" },
-            ["title.ver"] = new[] { "v0.5 — 원정대의 완성", "v0.5 — The Full Expedition" },
+            ["title.ver"] = new[] { "v0.6 — 갈림길의 던전", "v0.6 — The Branching Depths" },
             ["title.lang"] = new[] { "English", "한국어" },
 
             // 설정 오버레이
@@ -214,7 +214,7 @@ namespace Tanker
             ["enc.random"] = new[] { "적 무리", "Enemy Band" }, // 폴백 — 실제 제목은 적 구성에서 생성
             ["enc.pack"] = new[] { "{0} 무리", "{0} Pack" },
             ["enc.ambush"] = new[] { "{0}의 습격", "{0} Ambush" },
-            ["enc.eliteAmbush"] = new[] { "정예 — {0}의 습격", "Elite {0} Ambush" },
+            ["enc.eliteAmbush"] = new[] { "정예 — {0}의 습격", "Elite Ambush — {0}" },
             ["enc.elite"] = new[] { "정예 조우전", "Elite Encounter" },
             ["node.battleRandom"] = new[] { "전투 — 무작위 조우", "Battle — Random Encounter" },
 

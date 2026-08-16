@@ -10,6 +10,13 @@ namespace Tanker
     {
         static GameObject openCanvas;
 
+        /// 화면 전환 시 강제 닫기 — 전투가 끝나도 오버레이가 남는 것 방지
+        public static void Close()
+        {
+            if (openCanvas != null) Object.Destroy(openCanvas);
+            openCanvas = null;
+        }
+
         /// hand/draw/discard에 -1을 주면 구성 부제를 생략한다 (전투 밖 열람용)
         public static void Open(List<CardType> deck, int hand = -1, int draw = -1, int discard = -1)
         {

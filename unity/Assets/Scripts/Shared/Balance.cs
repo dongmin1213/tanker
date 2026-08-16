@@ -59,8 +59,8 @@ namespace Tanker
         // v0.4 — 인카운터 생성·스케일링
         public int encounterBudgetBase = 5;
         public int encounterBudgetPerStage = 2;
-        public float scaleHpPct = 0.12f;
-        public int scalePowerStages = 2;
+        public float scaleHpPct = 0.08f;  // v0.6.2: 층 기반 스케일로 전환하며 보정 (0~7층)
+        public int scalePowerStages = 3;
 
         // v0.4 — 카드
         public int devotionAmount = 5;
@@ -85,12 +85,18 @@ namespace Tanker
 
         // v0.6 — 분기 맵 (StS식)
         public int mapFloors = 8;
+        public int mapNodesMin = 2;       // 중간층 방 수 범위
+        public int mapNodesMax = 3;
         public int mapElites = 2;
         public int mapShops = 2;
         public int mapTreasures = 1;
         public int mapRests = 1;          // 중간 휴식 (보스 전 휴식은 별도 고정)
         public int mapEvents = 2;
         public int eliteMinFloor = 3;
+        public int shopMinFloor = 1;
+        public int treasureMinFloor = 1;
+        public int restMidMinFloor = 2;
+        public int eventMinFloor = 1;
         public int eliteBudgetBonus = 3;
         public int treasureGold = 25;
 
