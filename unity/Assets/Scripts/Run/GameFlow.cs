@@ -38,7 +38,12 @@ namespace Tanker
         void Clear()
         {
             animImg = null; animFrames = null;
-            if (screen != null) Destroy(screen.gameObject);
+            if (screen != null)
+            {
+                // Destroy는 프레임 끝 처리 — 즉시 비활성화해 같은 프레임 이중 클릭(보상 중복·노드 건너뜀)을 차단
+                screen.gameObject.SetActive(false);
+                Destroy(screen.gameObject);
+            }
             screen = UiKit.Rt("screen", root, new Vector2(540, 960), new Vector2(1080, 1920));
         }
 
@@ -132,18 +137,18 @@ namespace Tanker
                 Loc.T("party.desc"), 30, UiKit.Hex("cfc8e8"), center: true);
 
             float y = 450;
-            DrawPartyRow(Loc.T("unit.tank"), "tank", RunState.TankMax, 0, true, y);
+            DrawPartyRow(Loc.T("unit.tank"), "tank", RunState.TankMax, 0, true, y, Trait.None);
             for (int i = 0; i < run.Party.Count; i++)
             {
                 y -= 195;
                 var cd = RunData.Class(run.Party[i]);
-                DrawPartyRow(Loc.T(cd.LocKey), cd.Sheet, cd.Hp, cd.Power, cd.IsHealer, y);
+                DrawPartyRow(Loc.T(cd.LocKey), cd.Sheet, cd.Hp, cd.Power, cd.IsHealer, y, cd.Trait);
             }
 
             UiKit.Btn("go", screen, new Vector2(0, -700), new Vector2(520, 130), Loc.T("party.go"), () => ShowMap(), 44, center: true);
         }
 
-        void DrawPartyRow(string name, string sheet, int hp, int power, bool healer, float y)
+        void DrawPartyRow(string name, string sheet, int hp, int power, bool healer, float y, Trait trait)
         {
             var row = UiKit.FramedPanel("row_" + name, screen, new Vector2(0, y), new Vector2(940, 180), center: true);
             row.raycastTarget = false;
@@ -155,8 +160,12 @@ namespace Tanker
             string stat = healer && power > 0 ? Loc.F("party.heal", hp, power)
                         : power > 0 ? Loc.F("party.attack", hp, power)
                         : Loc.F("party.tank", hp);
-            UiKit.Label("pn_" + name, screen, new Vector2(90, y), new Vector2(620, 160),
-                name + "\n<size=26>" + stat + "</size>", 38, Color.white, TextAnchor.MiddleLeft, true, center: true);
+            // 고유 특성은 소개 화면에서 반드시 설명한다 (매커니즘이 보이지 않으면 없는 것과 같다)
+            if (trait != Trait.None)
+                stat += "\n<color=#ffd75e>" + (trait == Trait.TankHealOnHit
+                    ? Loc.F("trait." + trait, Balance.I.paladinTankHeal) : Loc.T("trait." + trait)) + "</color>";
+            UiKit.Label("pn_" + name, screen, new Vector2(90, y), new Vector2(620, 170),
+                name + "\n<size=24>" + stat + "</size>", 36, Color.white, TextAnchor.MiddleLeft, true, center: true);
         }
 
         // ---------- 맵 ----------
@@ -253,8 +262,7 @@ namespace Tanker
 
             if (done)
                 UiKit.Label("nd" + i, screen, p, new Vector2(90, 90), "✓", 60, UiKit.Hex("8fd4a8"), bold: true, center: true);
-            if (now)
-                UiKit.Label("nc" + i, screen, p + new Vector2(0, s / 2 + 30), new Vector2(300, 34), "▼", 30, UiKit.Hex("ffd75e"), bold: true, center: true);
+            // 현재 노드 강조는 확대+금색 틴트+굵은 라벨로 충분 — ▼ 마커는 위 노드를 침범해 제거 (전수검사)
 
             // 라벨은 좌우 번갈아 바깥쪽에
             float lx = p.x <= -100 ? p.x + s / 2 + 165 : p.x - s / 2 - 165;
@@ -288,6 +296,7 @@ namespace Tanker
 
         public void StartBattle(EncounterDef def)
         {
+            if (battleGo != null) return; // 진입 연타 → 전투 이중 생성 방지
             Clear();
             battleGo = new GameObject("Battle");
             var mgr = battleGo.AddComponent<BattleManager>();

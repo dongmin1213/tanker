@@ -31,41 +31,58 @@ namespace Tanker
             set { sfxVol = Mathf.Clamp01(value); PlayerPrefs.SetFloat("vol.sfx", sfxVol); }
         }
 
+        static volatile float[] pendingBgm; // 워커 스레드가 채우고 호스트 Update가 회수
+        static bool bgmRequested;
+
         static void Ensure()
         {
             if (bgmSrc != null) return;
             var go = new GameObject("AudioKit");
             Object.DontDestroyOnLoad(go);
+            go.AddComponent<AudioKitHost>();
             bgmSrc = go.AddComponent<AudioSource>();
             sfxSrc = go.AddComponent<AudioSource>();
             bgmSrc.loop = true;
             bgmSrc.volume = BgmVolume * 0.5f;
         }
 
+        /// BGM 샘플(~21초)은 워커 스레드에서 합성 — 첫 화면 메인 스레드 정지 방지.
+        /// AudioClip 생성은 메인 스레드 전용이라 호스트가 완성 버퍼를 회수해 마무리한다.
         public static void PlayBgm()
         {
             Ensure();
-            if (bgmClip == null) bgmClip = MakeBgm();
-            if (bgmSrc.clip != bgmClip) { bgmSrc.clip = bgmClip; bgmSrc.Play(); }
-            else if (!bgmSrc.isPlaying) bgmSrc.Play();
+            if (bgmClip != null)
+            {
+                if (bgmSrc.clip != bgmClip) { bgmSrc.clip = bgmClip; bgmSrc.Play(); }
+                else if (!bgmSrc.isPlaying) bgmSrc.Play();
+                return;
+            }
+            if (bgmRequested) return;
+            bgmRequested = true;
+            System.Threading.Tasks.Task.Run(() => { pendingBgm = MakeBgmSamples(); });
         }
 
-        // ---- 효과음 재생 (지연 합성 + 캐시) ----
-
-        public static void Click() => Play(ref clickClip, MakeClick);
-        public static void Card() => Play(ref cardClip, MakeCard);
-        public static void Hit() => Play(ref hitClip, MakeHit);
-        public static void Guard() => Play(ref guardClip, MakeGuard);
-        public static void Heal() => Play(ref healClip, MakeHeal);
-        public static void Win() => Play(ref winClip, MakeWin);
-        public static void Lose() => Play(ref loseClip, MakeLose);
-
-        static void Play(ref AudioClip clip, System.Func<AudioClip> make)
+        internal static void PollBgm()
         {
-            Ensure();
-            if (clip == null) clip = make();
-            sfxSrc.PlayOneShot(clip, SfxVolume);
+            var samples = pendingBgm;
+            if (samples == null || bgmClip != null) return;
+            pendingBgm = null;
+            bgmClip = Clip("bgm", samples);
+            bgmSrc.clip = bgmClip;
+            bgmSrc.Play();
         }
+
+        // ---- 효과음 재생 (지연 합성 + 캐시, 호출당 할당 없음) ----
+
+        public static void Click() { Ensure(); PlayOne(clickClip ??= MakeClick()); }
+        public static void Card() { Ensure(); PlayOne(cardClip ??= MakeCard()); }
+        public static void Hit() { Ensure(); PlayOne(hitClip ??= MakeHit()); }
+        public static void Guard() { Ensure(); PlayOne(guardClip ??= MakeGuard()); }
+        public static void Heal() { Ensure(); PlayOne(healClip ??= MakeHeal()); }
+        public static void Win() { Ensure(); PlayOne(winClip ??= MakeWin()); }
+        public static void Lose() { Ensure(); PlayOne(loseClip ??= MakeLose()); }
+
+        static void PlayOne(AudioClip clip) => sfxSrc.PlayOneShot(clip, SfxVolume);
 
         // ---- 합성 유틸 ----
 
@@ -170,7 +187,8 @@ namespace Tanker
 
         // ---- BGM: 어둑한 던전 루프 (A단조, 8마디, 무한 루프) ----
 
-        static AudioClip MakeBgm()
+        /// 순수 수학만 사용 — 워커 스레드에서 실행 가능
+        static float[] MakeBgmSamples()
         {
             const float bpm = 92f;
             float beat = 60f / bpm;
@@ -210,7 +228,13 @@ namespace Tanker
                 b[i] *= k;
                 b[b.Length - 1 - i] *= k;
             }
-            return Clip("bgm", b);
+            return b;
         }
+    }
+
+    /// AudioKit의 메인 스레드 훅 — 워커가 합성한 BGM 버퍼를 회수해 클립으로 만든다
+    class AudioKitHost : MonoBehaviour
+    {
+        void Update() => AudioKit.PollBgm();
     }
 }

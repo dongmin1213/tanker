@@ -16,10 +16,14 @@ namespace Tanker
                 Loc.T("set.open"), () => Open(onRedraw, onReturnTitle), 28, center: true);
         }
 
+        static GameObject openCanvas; // 연타로 겹쳐 열리는 것 방지
+
         public static void Open(System.Action onRedraw, System.Action onReturnTitle)
         {
+            if (openCanvas != null) return;
             var frame = UiKit.MakeCanvas("SettingsCanvas", 90);
             var canvasGo = frame.parent.gameObject;
+            openCanvas = canvasGo;
             bool confirming = false;
 
             // 배경 딤 — 탭 차단
@@ -40,6 +44,7 @@ namespace Tanker
             {
                 Loc.SetLang(Loc.Lang == Loc.KO ? Loc.EN : Loc.KO);
                 Object.Destroy(canvasGo);
+                openCanvas = null; // Destroy는 프레임 끝 처리 — 즉시 재오픈 허용
                 onRedraw?.Invoke();
                 Open(onRedraw, onReturnTitle); // 새 언어로 다시 연다
             }, 32, center: true);

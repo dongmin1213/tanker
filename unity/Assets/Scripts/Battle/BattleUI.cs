@@ -16,6 +16,8 @@ namespace Tanker
         readonly Dictionary<Unit, UnitView> views = new();
         readonly Dictionary<Unit, RectTransform[]> lines = new();
         readonly Dictionary<Unit, Text> intentLabels = new();
+        readonly Dictionary<Unit, int> previewCache = new();
+        int previewVersion = -1;
         readonly Dictionary<Unit, Vector2> posOf = new();
         Text turnText, savedText, logText, deckText;
         readonly Button[] cardBtns = new Button[3];
@@ -190,8 +192,8 @@ namespace Tanker
 
             foreach (var e in mgr.Enemies)
             {
-                var pair = new RectTransform[2];
-                for (int i = 0; i < 2; i++)
+                var pair = new RectTransform[4]; // 광역 최대 4명 + 거미 엄호 둘째 타까지 전부 시각화
+                for (int i = 0; i < pair.Length; i++)
                 {
                     var line = Rt("line_" + e.Name + i, stage, Vector2.zero, new Vector2(0, 6));
                     line.pivot = new Vector2(0, 0.5f);
@@ -363,7 +365,13 @@ namespace Tanker
 
             if (v.Incoming != null)
             {
-                int inc = u.Alive && mgr.Phase == Phase.Player ? mgr.IncomingPreview(u) : 0;
+                int inc = 0;
+                if (u.Alive && mgr.Phase == Phase.Player)
+                {
+                    // 플레이어 페이즈는 입력에만 상태가 변하므로 StateVersion 캐시로 시뮬 재계산(할당)을 막는다
+                    if (previewVersion != mgr.StateVersion) { previewCache.Clear(); previewVersion = mgr.StateVersion; }
+                    if (!previewCache.TryGetValue(u, out inc)) previewCache[u] = inc = mgr.IncomingPreview(u);
+                }
                 v.Incoming.text = inc > 0 ? Loc.F("st.incoming", inc) : "";
             }
         }
@@ -433,8 +441,7 @@ namespace Tanker
         {
             var pair = lines[e];
             var label = intentLabels[e];
-            pair[0].gameObject.SetActive(false);
-            pair[1].gameObject.SetActive(false);
+            foreach (var line in pair) line.gameObject.SetActive(false);
 
             if (!e.Alive || mgr.Phase != Phase.Player) { label.text = ""; return; }
             if (mgr.IsStunnedNow(e)) { label.text = Loc.T("intent.stunned"); label.color = Hex("ffcc80"); return; }
@@ -464,16 +471,21 @@ namespace Tanker
 
             if (mgr.AoeActive(e))
             {
-                int i = 0;
+                int i = 0, extra = 0;
                 string parts = "";
                 foreach (var b in mgr.Allies)
                 {
-                    if (b.IsTank || !b.Alive || i >= 2) continue;
+                    if (b.IsTank || !b.Alive) continue;
                     bool covered = mgr.CoverPreview == b;
                     var recv = covered ? mgr.Tank : b;
-                    DrawLine(pair[i++], posOf[e], posOf[recv], covered ? Hex("ffd75e") : Hex("ff6b6b"));
-                    parts += (parts == "" ? "" : " · ") + recv.Name + " " + mgr.EffectiveAoeDamage(e, b);
+                    if (i < pair.Length)
+                        DrawLine(pair[i], posOf[e], posOf[recv], covered ? Hex("ffd75e") : Hex("ff6b6b"));
+                    // 라벨은 2명까지 상세, 이후는 "외 N" — 개별 수치는 각 유닛의 예상 표시가 담당
+                    if (i < 2) parts += (parts == "" ? "" : " · ") + recv.Name + " " + mgr.EffectiveAoeDamage(e, b);
+                    else extra++;
+                    i++;
                 }
+                if (extra > 0) parts += Loc.F("intent.aoeMore", extra);
                 label.text = Loc.F("intent.aoe", parts);
                 label.color = Hex("ff6b6b");
                 return;
@@ -486,6 +498,10 @@ namespace Tanker
             label.text = Loc.F("intent.single", target.Name, mgr.EffectiveDamage(e));
             label.color = c;
             DrawLine(pair[0], posOf[e], posOf[target], c);
+            // 거미 연타 + 엄호: 둘째 타는 원 대상에게 — 그 공격선도 숨기지 않는다 (전수검사)
+            if (e.Ai == AiKind.SpiderDouble && redirected && !mgr.IsTauntedNow(e)
+                && e.Intent != null && e.Intent.Alive)
+                DrawLine(pair[1], posOf[e], posOf[e.Intent], Hex("ff6b6b"));
         }
 
         // ---------- 연출 ----------
@@ -500,7 +516,9 @@ namespace Tanker
             }
             if (views.TryGetValue(victim, out var vv) && posOf.ContainsKey(attacker))
             {
-                bool heal = attacker.Team == Team.Ally && attacker.Role == Role.Healer;
+                bool heal = (attacker.Team == Team.Ally && attacker.Role == Role.Healer)
+                            || attacker.Ai == AiKind.EnemyHealer; // 네크로 회복도 힐 연출
+
                 vv.FlashT = heal ? 0.5f : 1f;
                 SpawnFx(heal ? fxHeal : fxHit, posOf[victim]);
                 if (!heal)

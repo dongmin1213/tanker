@@ -41,6 +41,7 @@ namespace Tanker
         public int RedirectedSaved, MitigatedSaved;
         public int TotalSaved => RedirectedSaved + MitigatedSaved;
         public int RewardGold;
+        public int StateVersion;                       // 플레이어 페이즈 예측 캐시 무효화용 — 입력·턴 시작에만 증가
         public string EncounterTitle = "";
         public string Log = "";
 
@@ -101,6 +102,7 @@ namespace Tanker
             DrawHand();
 
             RollIntents();
+            StateVersion++;
             Log = Loc.T("log.t1");
         }
 
@@ -189,9 +191,11 @@ namespace Tanker
         static int EnemyThreat(Unit e) => (e.Stunned || e.Charging ? 0 : 100) + e.Power;
 
         /// 아군 공격수의 이번 타 피해 — 위축 절반, 광전사는 HP 절반 이하에서 2배 (예측·해소 공용)
-        static int AllyDamage(Unit a)
+        static int AllyDamage(Unit a) => AllyDamage(a, a.Shaken);
+
+        static int AllyDamage(Unit a, bool shaken)
         {
-            int d = a.Shaken ? a.Power / 2 : a.Power;
+            int d = shaken ? a.Power / 2 : a.Power;
             if (a.Trait == Trait.Frenzy && a.Hp * 2 <= a.MaxHp) d *= 2;
             return d;
         }
@@ -396,14 +400,21 @@ namespace Tanker
             var killed = new HashSet<Unit>();
             var hp = new Dictionary<Unit, int>();
             foreach (var e in Enemies) if (e.Alive) hp[e] = e.Hp;
+            var shaken = new Dictionary<Unit, bool>();
+            foreach (var a in Allies) shaken[a] = a.Shaken;
             foreach (var a in Allies)
             {
                 if (!a.Alive || a.Role != Role.Attacker) continue;
-                int dmg = AllyDamage(a);
+                int dmg = AllyDamage(a, shaken[a]);
                 var tgt = PickAttackTarget(dmg, e => hp.TryGetValue(e, out var v) && !killed.Contains(e) ? v : 0);
                 if (tgt == null) break;
+                shaken[a] = false;
                 hp[tgt] -= dmg;
                 if (hp[tgt] <= 0) killed.Add(tgt);
+                // 음유시인 정화를 해소와 같은 순서로 반영 — 뒤 순번 공격수의 피해가 달라진다
+                if (a.Trait == Trait.Cleanse)
+                    foreach (var ally in Allies)
+                        if (ally.Alive && shaken[ally]) { shaken[ally] = false; break; }
             }
             return killed;
         }
@@ -422,6 +433,7 @@ namespace Tanker
         public void PressCard(int idx)
         {
             if (!CanUseSkill || !CardPlayable(idx)) return;
+            StateVersion++;
             if (PendingCard == idx) { PendingCard = -1; Log = Loc.T("log.selCancel"); return; }
             if (PlannedCard == idx)
             {
@@ -444,6 +456,7 @@ namespace Tanker
         public void ClickUnit(Unit u)
         {
             if (Phase != Phase.Player || PendingCard < 0 || !u.Alive) return;
+            StateVersion++;
             var card = Hand[PendingCard];
             var need = Cards.TargetOf(card);
             if (need == CardTarget.Enemy && u.Team == Team.Enemy)
@@ -785,6 +798,7 @@ namespace Tanker
             Hand.Clear();
             DrawHand();
             var notice = RollIntents();
+            StateVersion++;
             Phase = Phase.Player;
             Log = notice ?? Loc.F("log.turn", Turn);
         }

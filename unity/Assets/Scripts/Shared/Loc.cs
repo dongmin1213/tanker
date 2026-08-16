@@ -191,6 +191,9 @@ namespace Tanker
             ["class.paladin"] = new[] { "성기사", "Paladin" },
             ["class.berserker"] = new[] { "광전사", "Berserker" },
             ["class.bard"] = new[] { "음유시인", "Bard" },
+            ["trait.TankHealOnHit"] = new[] { "특성: 공격할 때마다 탱커 {0} 회복", "Trait: heals the tank {0} on every attack" },
+            ["trait.Frenzy"] = new[] { "특성: HP 절반 이하면 공격력 2배", "Trait: double damage below half HP" },
+            ["trait.Cleanse"] = new[] { "특성: 공격 후 위축된 아군 1명 해제", "Trait: clears Shaken from an ally after attacking" },
 
             // ---- v0.4: 신규 적 ----
             ["unit.slime"] = new[] { "슬라임", "Slime" },
@@ -248,9 +251,10 @@ namespace Tanker
             ["pop.ironwill"] = new[] { "철의 의지!", "Iron Will!" },
             ["pop.mark"] = new[] { "수호 낙인!", "Marked!" },
             ["pop.thorns"] = new[] { "반사 -{0}", "Thorns -{0}" },
-            ["log.necroHeal"] = new[] { "{0}이(가) {1}을(를) 되살린다", "{0} mends {1}" },
+            ["log.necroHeal"] = new[] { "{0}이(가) {1}을(를) 치유한다", "{0} mends {1}" },
             ["log.necroIdle"] = new[] { "{0}이(가) 주문을 고른다", "{0} ponders a spell" },
             ["intent.heal"] = new[] { "회복 ▶ {0}", "Heal ▶ {0}" },
+            ["intent.aoeMore"] = new[] { " 외 {0}", " +{0} more" },
 
             // ---- v0.4: 전투 UI/로그 ----
             ["bt.deck"] = new[] { "핸드 {0} · 덱 {1}", "Hand {0} · Deck {1}" },
