@@ -59,11 +59,21 @@ python3 tools/mcp_unity.py call Unity_GetConsoleLogs '{}'
 현재: `SetPortraitGameView()` (게임 뷰 1080x1920 전환), `SetGameViewSize(w, h, name)` (임의 해상도 — 비율 내성 테스트용, 예: 1080x2340),
 `BuildGame(outputPath, target)` (빌드 시점에 `Assets/Scenes/Build.unity` 생성 후 빌드 — 씬 커밋 금지 규약 유지).
 
-## 빌드 & TestFlight
+## 빌드 & TestFlight (검증 완료 파이프라인)
 
 - 씬은 커밋하지 않으므로 빌드는 반드시 `TankerEditorTools.BuildGame(path, target)` 경유 (임시 씬 자동 생성).
-- macOS 스탠드얼론 빌드 검증 완료. iOS Build Support는 Hub CLI로 설치됨 (에디터 재시작 후 인식).
-- TestFlight 업로드까지 남은 **유저 액션 2가지**:
-  1. Apple Developer Program 등록 ($99/년) — https://developer.apple.com/programs/
-  2. Xcode에서 Apple ID 로그인 (Settings → Accounts)
-- 이후 Claude가 진행: 번들 ID 설정 → iOS 빌드 → Xcode 아카이브 → App Store Connect 업로드.
+- **iOS 업로드 전체 흐름** (2026-08-16 v0.4.0 빌드1로 검증):
+  1. 배치모드 빌드 (에디터 꺼진 상태에서):
+     `Unity -batchmode -quit -projectPath unity -buildTarget iOS -executeMethod Tanker.EditorTools.BuildIos`
+     → `unity/Builds/ios`에 Xcode 프로젝트. `BuildIos()`가 번들 ID(`com.dongmin1213.tanker`)·버전·세로 고정·아이콘까지 설정.
+  2. `Builds/ios/Info.plist`에 `ITSAppUsesNonExemptEncryption=false` 추가 (PlistBuddy — TestFlight 암호화 설문 생략).
+  3. 아카이브: `xcodebuild -project Unity-iPhone.xcodeproj -scheme Unity-iPhone -configuration Release -destination generic/platform=iOS archive -archivePath ../tanker.xcarchive -allowProvisioningUpdates DEVELOPMENT_TEAM=3N2543B2FD`
+  4. 업로드: `xcodebuild -exportArchive` + **수동 서명 exportOptions**(method `app-store-connect`, destination `upload`,
+     signingStyle `manual`, cert `Apple Distribution`, 프로파일 `Tanker AppStore`) + **API 키 인증**
+     (`-authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_27H547L8YJ.p8 -authenticationKeyID 27H547L8YJ -authenticationKeyIssuerID 8bc44c53-8575-42be-8b25-b1cca4483963`).
+- **왜 이 조합인가 (삽질 기록)**:
+  - Xcode 계정 세션은 만료돼 있으면 CLI가 `Failed to Use Accounts`로 실패 → 세션 무관한 **ASC API 키**를 쓴다 (조선 퇴마 때 만든 키 재사용).
+  - API 키로는 Xcode 클라우드 서명이 안 됨(`Cloud signing permission error`) → **배포 프로파일을 ASC API로 직접 생성**
+    (POST /v1/profiles, IOS_APP_STORE, 스크립트는 세션 스크래치의 make_profile.py 참고) 후 수동 서명.
+  - App ID 등록·ASC 앱 레코드 생성은 웹에서 1회 완료됨 (앱: "탱커 : 방패 원정대", SKU tanker-001).
+- 다음 업로드부터는 버전/빌드번호 올리고(1→2) 1·3·4만 반복하면 된다.

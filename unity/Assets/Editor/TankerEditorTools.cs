@@ -23,6 +23,30 @@ namespace Tanker
             return "빌드 " + s.result + " | 크기 " + (s.totalSize / (1024 * 1024)) + "MB | 에러 " + s.totalErrors
                  + " | 경고 " + s.totalWarnings + " | 출력 " + s.outputPath;
         }
+        /// TestFlight용 iOS 빌드 — 배치모드 -executeMethod 진입점.
+        /// 플레이어 설정(번들 ID·버전·서명·세로 고정·아이콘)을 잡고 Xcode 프로젝트를 Builds/ios에 생성한다.
+        public static void BuildIos()
+        {
+            PlayerSettings.companyName = "dongmin1213";
+            PlayerSettings.productName = "Tanker";
+            PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.iOS, "com.dongmin1213.tanker");
+            PlayerSettings.bundleVersion = "0.4.0";
+            PlayerSettings.iOS.buildNumber = "1";
+            PlayerSettings.iOS.appleDeveloperTeamID = "3N2543B2FD";
+            PlayerSettings.iOS.appleEnableAutomaticSigning = true;
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.allowedAutorotateToPortrait = true;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = false;
+            PlayerSettings.allowedAutorotateToLandscapeRight = false;
+
+            var icon = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/Icons/app-icon.png");
+            if (icon != null)
+                PlayerSettings.SetIcons(UnityEditor.Build.NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+
+            Debug.Log("[BuildIos] " + BuildGame("Builds/ios", BuildTarget.iOS));
+        }
+
         /// 게임 뷰를 1080x1920 세로 고정 해상도로 전환한다.
         public static string SetPortraitGameView() => SetGameViewSize(1080, 1920, "TankerPortrait");
 
