@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace Tanker
 {
     /// 탱커의 행동 카드 — 전부 방어/지원 계열 (공격 카드 없음이 게임 정체성).
-    public enum CardType { Taunt, Cover, Brace, Shield, Shove, Devotion, Rally, Phalanx, Oath }
+    public enum CardType { Taunt, Cover, Brace, Shield, Shove, Devotion, Rally, Phalanx, Oath, IronWill, GuardianMark, Respite }
 
     public enum CardTarget { None, Enemy, Ally }
 
@@ -13,6 +13,7 @@ namespace Tanker
         {
             CardType.Taunt, CardType.Cover, CardType.Brace, CardType.Shield, CardType.Shove,
             CardType.Devotion, CardType.Rally, CardType.Phalanx, CardType.Oath,
+            CardType.IronWill, CardType.GuardianMark, CardType.Respite,
         };
 
         public static CardTarget TargetOf(CardType c)
@@ -24,8 +25,9 @@ namespace Tanker
                 case CardType.Cover:
                 case CardType.Shield:
                 case CardType.Devotion:
+                case CardType.GuardianMark:
                 case CardType.Rally: return CardTarget.Ally;
-                default: return CardTarget.None; // Brace, Phalanx, Oath
+                default: return CardTarget.None; // Brace, Phalanx, Oath, IronWill, Respite
             }
         }
 
@@ -40,6 +42,8 @@ namespace Tanker
                 case CardType.Devotion: return Loc.F("card.Devotion.desc", b.devotionAmount);
                 case CardType.Phalanx: return Loc.F("card.Phalanx.desc", b.phalanxReduce);
                 case CardType.Oath: return Loc.F("card.Oath.desc", b.oathReduce, b.oathTurns);
+                case CardType.IronWill: return Loc.F("card.IronWill.desc", b.ironWillCap);
+                case CardType.Respite: return Loc.F("card.Respite.desc", b.respiteHeal);
                 default: return Loc.T("card." + c + ".desc");
             }
         }

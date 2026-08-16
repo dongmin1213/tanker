@@ -93,9 +93,11 @@ namespace Tanker
                 case "tank": return new Vector2(170, 190);
                 case "brute": case "orc": return new Vector2(180, 200);
                 case "boss": return new Vector2(240, 280);
-                case "warrior": case "beastkin": return new Vector2(150, 170);
+                case "warrior": case "beastkin": case "paladin": case "berserker": return new Vector2(150, 170);
                 case "slime": return new Vector2(130, 120);
                 case "spider": return new Vector2(170, 140);
+                case "golem": return new Vector2(190, 210);
+                case "bat": return new Vector2(120, 100);
                 default: return new Vector2(140, 160);
             }
         }
@@ -119,6 +121,12 @@ namespace Tanker
                 case "orc": return Hex("6f7a3f");
                 case "shaman": return Hex("7a55c0");
                 case "spider": return Hex("8f3f55");
+                case "paladin": return Hex("c0a848");
+                case "berserker": return Hex("b43f3f");
+                case "bard": return Hex("4f7ab4");
+                case "golem": return Hex("6f6f7a");
+                case "bat": return Hex("55415f");
+                case "necro": return Hex("3f5548");
                 default: return Hex("6a8f4f");
             }
         }
@@ -210,6 +218,9 @@ namespace Tanker
             }
             goBtn = UiKit.Btn("go", root, new Vector2(540, 155), new Vector2(980, 130), Loc.T("skill.go"), () => mgr.EndTurn(), 42);
             Label("hintGo", root, new Vector2(540, 45), new Vector2(1000, 40), Loc.T("hint.cards"), 22, Hex("8f86ad"));
+
+            var flow = Object.FindFirstObjectByType<GameFlow>();
+            SettingsUI.AttachGear(root, null, flow != null ? (System.Action)flow.AbortBattleToTitle : null);
 
             resultPanel = Panel("result", root, new Vector2(540, 960), new Vector2(1080, 1920), new Color(0, 0, 0, 0.72f)).gameObject;
             var resultRt = resultPanel.GetComponent<RectTransform>();
@@ -437,6 +448,17 @@ namespace Tanker
                 label.text = Loc.F("intent.curse", ct.Name);
                 label.color = Hex("c08aff");
                 DrawLine(pair[0], posOf[e], posOf[ct], Hex("c08aff"));
+                return;
+            }
+
+            if (e.Ai == AiKind.EnemyHealer)
+            {
+                if (mgr.IsTauntedNow(e)) { label.text = Loc.T("intent.curseWasted"); label.color = Hex("a5ffd8"); return; }
+                var ht = e.HealIntent;
+                if (ht == null || !ht.Alive) { label.text = ""; return; }
+                label.text = Loc.F("intent.heal", ht.Name);
+                label.color = Hex("8fd4a8");
+                DrawLine(pair[0], posOf[e], posOf[ht], Hex("8fd4a8"));
                 return;
             }
 

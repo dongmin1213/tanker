@@ -61,6 +61,18 @@ character centered in each cell, occupying about 80% of cell height, square canv
 | boss-idle | 보스 오거 워로드 idle 루프 | `massive armored ogre warlord with a huge spiked club and skull pauldrons, towering heavy silhouette, heavy breathing idle across the 4 frames` (시그니처: 검붉은색) |
 | boss-attack | 보스 강타 원샷 | `massive armored ogre warlord swinging a huge spiked club in a devastating overhead smash, wind-up to impact across the 4 frames` |
 | boss-charge | 보스 힘 모으기 루프 | `massive armored ogre warlord crouching and gathering crackling dark crimson energy, glow intensifying across the 4 frames` |
+| paladin-idle | 성기사 idle 루프 (v0.5) | `holy paladin in gilded plate armor with a warhammer and sacred sigils, stalwart idle across the 4 frames` (시그니처: 금빛) |
+| paladin-attack | 성기사 공격 원샷 | `holy paladin swinging a warhammer with a soft golden blessing glow, wind-up to strike across the 4 frames` |
+| berserker-idle | 광전사 idle 루프 (v0.5) | `shirtless berserker with a two-handed axe and red war tattoos, heaving breath idle across the 4 frames` (시그니처: 붉은 문신) |
+| berserker-attack | 광전사 공격 원샷 | `shirtless berserker with red war tattoos swinging a two-handed axe in a wild arc across the 4 frames` |
+| bard-idle | 음유시인 idle 루프 (v0.5) | `wandering bard with a feathered cap strumming a lute, relaxed idle across the 4 frames` (시그니처: 깃털 모자) |
+| bard-attack | 음유시인 연주 원샷 | `wandering bard with a feathered cap playing a rousing lute chord with music note sparkles across the 4 frames` |
+| golem-idle | 가시 골렘 idle 루프 (v0.5) | `hulking grey stone golem covered in jagged thorn spikes, slow heavy idle across the 4 frames` (시그니처: 가시 실루엣) |
+| golem-attack | 가시 골렘 공격 원샷 | `hulking thorn-spiked stone golem slamming both fists down, wind-up to impact across the 4 frames` |
+| bat-idle | 흡혈 박쥐 idle 루프 (v0.5) | `purple vampire bat hovering with beating wings, small airborne silhouette across the 4 frames` (시그니처: 보라색) |
+| bat-attack | 흡혈 박쥐 공격 원샷 | `purple vampire bat lunging with bared fangs, swoop and bite across the 4 frames` |
+| necro-idle | 네크로맨서 idle 루프 (v0.5) | `necromancer in a ragged dark robe holding a skull-topped staff, hunched idle with faint green wisps across the 4 frames` (시그니처: 녹색 사령술) |
+| necro-cast | 네크로맨서 주문 원샷 | `necromancer raising a skull-topped staff casting green necrotic mending magic, gather to release across the 4 frames` |
 
 ## 비캐릭터 에셋
 

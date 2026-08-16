@@ -50,7 +50,7 @@ namespace Tanker
             ["node.battle"] = new[] { "전투 — {0}", "Battle — {0}" },
             ["node.event"] = new[] { "이벤트 — 가시 함정 복도", "Event — Spike Trap Corridor" },
             ["node.choice"] = new[] { "갈림길 — 휴식 또는 상점", "Fork — Rest or Shop" },
-            ["node.elite"] = new[] { "엘리트 — {0}", "Elite — {0}" },
+            ["node.elite"] = new[] { "엘리트 — 강화 조우", "Elite — Hardened Foes" },
             ["node.rest"] = new[] { "휴식 — 모닥불", "Rest — Campfire" },
             ["node.boss"] = new[] { "보스 — {0}", "Boss — {0}" },
 
@@ -58,8 +58,22 @@ namespace Tanker
             ["title.name"] = new[] { "탱 커", "T A N K E R" },
             ["title.sub"] = new[] { "공격 스킬은 없다. 팀은 내가 지킨다.", "No attack skills. I protect the team." },
             ["title.start"] = new[] { "던전에 들어간다", "Enter the Dungeon" },
-            ["title.ver"] = new[] { "v0.4 — 랜덤 원정대", "v0.4 — Random Expedition" },
+            ["title.ver"] = new[] { "v0.5 — 원정대의 완성", "v0.5 — The Full Expedition" },
             ["title.lang"] = new[] { "English", "한국어" },
+
+            // 설정 오버레이
+            ["set.open"] = new[] { "설정", "Menu" },
+            ["set.title"] = new[] { "설 정", "S E T T I N G S" },
+            ["set.bgm"] = new[] { "배경음", "Music" },
+            ["set.sfx"] = new[] { "효과음", "Sound FX" },
+            ["set.lang"] = new[] { "언어: 한국어 ▸ English", "Language: English ▸ 한국어" },
+            ["set.toTitle"] = new[] { "타이틀 화면으로", "Back to Title" },
+            ["set.confirmTitle"] = new[] { "정말요? 진행 중인 원정이 사라져요", "Sure? Your expedition will be lost" },
+            ["set.close"] = new[] { "닫기", "Close" },
+
+            // 엔딩 추가
+            ["end.retry"] = new[] { "새 원정 시작", "New Expedition" },
+            ["map.gold"] = new[] { "골드", "Gold" },
 
             // 맵
             ["map.h1"] = new[] { "던전 진행", "Dungeon Progress" },
@@ -174,12 +188,18 @@ namespace Tanker
             ["class.assassin"] = new[] { "암살자", "Assassin" },
             ["class.beastkin"] = new[] { "수인", "Beastkin" },
             ["class.cleric"] = new[] { "클레릭", "Cleric" },
+            ["class.paladin"] = new[] { "성기사", "Paladin" },
+            ["class.berserker"] = new[] { "광전사", "Berserker" },
+            ["class.bard"] = new[] { "음유시인", "Bard" },
 
             // ---- v0.4: 신규 적 ----
             ["unit.slime"] = new[] { "슬라임", "Slime" },
             ["unit.orc"] = new[] { "오크 전사", "Orc Warrior" },
             ["unit.shaman"] = new[] { "다크 샤먼", "Dark Shaman" },
             ["unit.spider"] = new[] { "독거미", "Venom Spider" },
+            ["unit.golem"] = new[] { "가시 골렘", "Thorn Golem" },
+            ["unit.bat"] = new[] { "흡혈 박쥐", "Vampire Bat" },
+            ["unit.necro"] = new[] { "네크로맨서", "Necromancer" },
             ["enc.random"] = new[] { "조우전", "Encounter" },
             ["enc.elite"] = new[] { "정예 조우전", "Elite Encounter" },
             ["node.battleRandom"] = new[] { "전투 — 무작위 조우", "Battle — Random Encounter" },
@@ -204,6 +224,13 @@ namespace Tanker
             ["card.Oath"] = new[] { "반석의 맹세", "Oath of Stone" },
             ["card.Oath.desc"] = new[] { "{1}턴간 내가 받는 피해 -{0}", "I take -{0} damage for {1} turns" },
             // 카드 버튼용 짧은 설명 (카드 폭 안에 들어가야 함)
+            ["card.IronWill"] = new[] { "철의 의지", "Iron Will" },
+            ["card.IronWill.desc"] = new[] { "이번 턴 내가 받는 한 방 피해 상한 {0}", "This turn each hit on me deals at most {0}" },
+            ["card.GuardianMark"] = new[] { "수호 낙인", "Guardian Mark" },
+            ["card.GuardianMark.desc"] = new[] { "이번 턴 그 아군 피해의 절반을 내가 분담", "I absorb half of that ally's damage this turn" },
+            ["card.Respite"] = new[] { "숨 고르기", "Respite" },
+            ["card.Respite.desc"] = new[] { "즉시 내 HP {0} 회복", "Instantly restore {0} of my HP" },
+
             ["card.Taunt.s"] = new[] { "적 고정 2턴", "Lock enemy 2t" },
             ["card.Cover.s"] = new[] { "대신 맞기", "Intercept" },
             ["card.Brace.s"] = new[] { "절반+회복", "Halve+heal" },
@@ -213,6 +240,17 @@ namespace Tanker
             ["card.Rally.s"] = new[] { "위축 해제", "Clear Shaken" },
             ["card.Phalanx.s"] = new[] { "전원 -2", "All -2" },
             ["card.Oath.s"] = new[] { "2턴 -2", "2t -2" },
+            ["card.IronWill.s"] = new[] { "한 방 상한", "Hit cap" },
+            ["card.GuardianMark.s"] = new[] { "피해 분담", "Share damage" },
+            ["card.Respite.s"] = new[] { "즉시 회복", "Self heal" },
+
+            // v0.5 신규 매커니즘 팝업·로그
+            ["pop.ironwill"] = new[] { "철의 의지!", "Iron Will!" },
+            ["pop.mark"] = new[] { "수호 낙인!", "Marked!" },
+            ["pop.thorns"] = new[] { "반사 -{0}", "Thorns -{0}" },
+            ["log.necroHeal"] = new[] { "{0}이(가) {1}을(를) 되살린다", "{0} mends {1}" },
+            ["log.necroIdle"] = new[] { "{0}이(가) 주문을 고른다", "{0} ponders a spell" },
+            ["intent.heal"] = new[] { "회복 ▶ {0}", "Heal ▶ {0}" },
 
             // ---- v0.4: 전투 UI/로그 ----
             ["bt.deck"] = new[] { "핸드 {0} · 덱 {1}", "Hand {0} · Deck {1}" },

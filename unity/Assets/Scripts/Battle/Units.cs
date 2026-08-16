@@ -14,6 +14,16 @@ namespace Tanker
         BossWarlord,      // ①차징 ②광역(비탱커 전원) ③강타(최강 공격수) 사이클. 격노 시 ②③ 교대
         ShamanCurse,      // 공격 대신 최강 공격수에게 위축 저주. 도발되면 행동 낭비
         SpiderDouble,     // 같은 대상(최저 HP 비탱커)을 연타 2회 — 엄호는 첫 타만 리다이렉트
+        EnemyHealer,      // 공격 대신 가장 다친 다른 적을 회복. 도발되면 행동 낭비
+    }
+
+    /// 아군 클래스 고유 특성 — 겹치지 않는 매커니즘 (풀 확장 규칙)
+    public enum Trait
+    {
+        None,
+        TankHealOnHit,    // 성기사: 공격할 때마다 탱커 회복
+        Frenzy,           // 광전사: HP 절반 이하면 공격력 2배
+        Cleanse,          // 음유시인: 공격 후 위축된 아군 1명 해제
     }
 
     public class Unit
@@ -40,6 +50,10 @@ namespace Tanker
         public int Step;
         public int ChargeOffset;
         public bool SmashToDps = true;
+        public Trait Trait;      // 아군 전용 특성
+        public int Thorns;       // 적 전용: 맞을 때 공격자에게 반사 피해 (0 = 없음)
+        public bool Lifesteal;   // 적 전용: 준 피해만큼 회복
+        public Unit HealIntent;  // EnemyHealer 전용: 회복 대상
 
         public bool Alive => Hp > 0;
 

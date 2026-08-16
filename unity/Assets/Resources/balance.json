@@ -65,5 +65,21 @@
   "phalanxReduce": 2,
   "oathReduce": 2,
   "oathTurns": 2,
-  "cardRemovePrice": 30
+  "cardRemovePrice": 30,
+  "paladinHp": 18,
+  "paladinPower": 4,
+  "paladinTankHeal": 1,
+  "berserkerHp": 17,
+  "berserkerPower": 5,
+  "bardHp": 13,
+  "bardPower": 4,
+  "golemHp": 24,
+  "golemPower": 4,
+  "golemThorns": 1,
+  "batHp": 8,
+  "batPower": 2,
+  "necroHp": 12,
+  "necroHeal": 3,
+  "ironWillCap": 3,
+  "respiteHeal": 4
 }

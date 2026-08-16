@@ -123,9 +123,40 @@ namespace Tanker
             if (ButtonSprite != null) { img.sprite = ButtonSprite; img.type = Image.Type.Sliced; }
             else img.color = ButtonColor;
             var btn = img.gameObject.AddComponent<Button>();
-            btn.onClick.AddListener(() => onClick());
+            btn.onClick.AddListener(() => { AudioKit.Click(); onClick?.Invoke(); });
             Label(name + "Txt", img.rectTransform, Vector2.zero, size, text, fontSize, Color.white, center: true);
             return btn;
+        }
+
+        /// 코드 생성 슬라이더 (0~1) — 배경 바 + 채움 + 핸들
+        public static Slider MakeSlider(string name, RectTransform parent, Vector2 pos, Vector2 size,
+                                        float value, System.Action<float> onChanged)
+        {
+            var rt = Rt(name, parent, pos, size, center: true);
+            var bg = Panel("bg", rt, Vector2.zero, size, Hex("241d33"), center: true);
+            bg.raycastTarget = true;
+
+            var fillArea = Rt("fillArea", rt, Vector2.zero, Vector2.zero, center: true);
+            fillArea.anchorMin = Vector2.zero; fillArea.anchorMax = Vector2.one;
+            fillArea.offsetMin = Vector2.zero; fillArea.offsetMax = Vector2.zero;
+            var fill = Panel("fill", fillArea, Vector2.zero, Vector2.zero, Hex("8fd4a8"));
+            fill.rectTransform.anchorMin = Vector2.zero; fill.rectTransform.anchorMax = Vector2.one;
+            fill.rectTransform.offsetMin = Vector2.zero; fill.rectTransform.offsetMax = Vector2.zero;
+            fill.raycastTarget = false;
+
+            var handleArea = Rt("handleArea", rt, Vector2.zero, Vector2.zero, center: true);
+            handleArea.anchorMin = Vector2.zero; handleArea.anchorMax = Vector2.one;
+            handleArea.offsetMin = new Vector2(17, 0); handleArea.offsetMax = new Vector2(-17, 0);
+            var handle = Panel("handle", handleArea, Vector2.zero, new Vector2(34, size.y + 26), Hex("ffd75e"), center: true);
+
+            var slider = rt.gameObject.AddComponent<Slider>();
+            slider.targetGraphic = handle;
+            slider.fillRect = fill.rectTransform;
+            slider.handleRect = handle.rectTransform;
+            slider.minValue = 0f; slider.maxValue = 1f;
+            slider.value = value;
+            slider.onValueChanged.AddListener(v => onChanged(v));
+            return slider;
         }
 
         /// 버튼 강조 (선택 상태) — 스프라이트 모드에선 틴트, 폴백에선 색 교체

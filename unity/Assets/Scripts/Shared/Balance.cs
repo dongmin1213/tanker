@@ -69,6 +69,20 @@ namespace Tanker
         public int oathTurns = 2;
         public int cardRemovePrice = 30;
 
+        // v0.5 — 신규 클래스 (특성: 성기사=공격 시 탱커 회복, 광전사=반피 2배, 음유시인=위축 해제)
+        public int paladinHp = 18; public int paladinPower = 4; public int paladinTankHeal = 1;
+        public int berserkerHp = 17; public int berserkerPower = 5;
+        public int bardHp = 13; public int bardPower = 4;
+
+        // v0.5 — 신규 적 (골렘=반사, 박쥐=흡혈, 네크로맨서=적 회복)
+        public int golemHp = 24; public int golemPower = 4; public int golemThorns = 1;
+        public int batHp = 8; public int batPower = 2;
+        public int necroHp = 12; public int necroHeal = 3;
+
+        // v0.5 — 신규 카드
+        public int ironWillCap = 3;
+        public int respiteHeal = 4;
+
         public int guardPrice = 40;
         public int guardValue = 2;
         public int coverPrice = 50;

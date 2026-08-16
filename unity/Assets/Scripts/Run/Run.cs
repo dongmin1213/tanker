@@ -4,11 +4,12 @@ namespace Tanker
 {
     public enum NodeType { Battle, Event, Choice, Rest, Boss }
 
-    public enum ClassId { Warrior, Rogue, Mage, Ranger, Assassin, Beastkin, Cleric }
+    public enum ClassId { Warrior, Rogue, Mage, Ranger, Assassin, Beastkin, Cleric, Paladin, Berserker, Bard }
 
     public class ClassDef
     {
         public ClassId Id; public string LocKey, Sheet; public int Hp, Power; public bool IsHealer;
+        public Trait Trait;
     }
 
     /// 던전 런 한 판의 상태 — 시드가 파티·인카운터·덱 셔플을 결정한다 (모든 랜덤은 사전 공개).
@@ -62,11 +63,14 @@ namespace Tanker
     public class UnitDef
     {
         public string NameKey, Sheet;
-        public int Hp, Power, AoePower, ChargeOffset;
+        public int Hp, Power, AoePower, ChargeOffset, Thorns;
         public AiKind Ai;
+        public bool Lifesteal;
 
-        public UnitDef(string nameKey, string sheet, int hp, int power, AiKind ai, int chargeOffset = 0, int aoePower = 0)
-        { NameKey = nameKey; Sheet = sheet; Hp = hp; Power = power; Ai = ai; ChargeOffset = chargeOffset; AoePower = aoePower; }
+        public UnitDef(string nameKey, string sheet, int hp, int power, AiKind ai, int chargeOffset = 0, int aoePower = 0,
+                       int thorns = 0, bool lifesteal = false)
+        { NameKey = nameKey; Sheet = sheet; Hp = hp; Power = power; Ai = ai; ChargeOffset = chargeOffset; AoePower = aoePower;
+          Thorns = thorns; Lifesteal = lifesteal; }
     }
 
     public class EncounterDef
@@ -104,6 +108,9 @@ namespace Tanker
                 case ClassId.Ranger: return new ClassDef { Id = id, LocKey = "class.ranger", Sheet = "ranger", Hp = b.rangerHp, Power = b.rangerPower };
                 case ClassId.Assassin: return new ClassDef { Id = id, LocKey = "class.assassin", Sheet = "assassin", Hp = b.assassinHp, Power = b.assassinPower };
                 case ClassId.Beastkin: return new ClassDef { Id = id, LocKey = "class.beastkin", Sheet = "beastkin", Hp = b.beastkinHp, Power = b.beastkinPower };
+                case ClassId.Paladin: return new ClassDef { Id = id, LocKey = "class.paladin", Sheet = "paladin", Hp = b.paladinHp, Power = b.paladinPower, Trait = Trait.TankHealOnHit };
+                case ClassId.Berserker: return new ClassDef { Id = id, LocKey = "class.berserker", Sheet = "berserker", Hp = b.berserkerHp, Power = b.berserkerPower, Trait = Trait.Frenzy };
+                case ClassId.Bard: return new ClassDef { Id = id, LocKey = "class.bard", Sheet = "bard", Hp = b.bardHp, Power = b.bardPower, Trait = Trait.Cleanse };
                 default: return new ClassDef { Id = id, LocKey = "class.cleric", Sheet = "healer", Hp = b.clericHp, Power = b.clericPower, IsHealer = true };
             }
         }
@@ -125,6 +132,7 @@ namespace Tanker
         class EnemyPick
         {
             public string Key, Sheet; public int Hp, Power, Cost; public AiKind Ai;
+            public int Thorns; public bool Lifesteal;
         }
 
         static List<EnemyPick> EnemyPool()
@@ -141,6 +149,9 @@ namespace Tanker
                 new EnemyPick { Key = "unit.shaman", Sheet = "shaman", Hp = b.shamanHp, Power = 0, Ai = AiKind.ShamanCurse, Cost = 3 },
                 new EnemyPick { Key = "unit.spider", Sheet = "spider", Hp = b.spiderHp, Power = b.spiderPower, Ai = AiKind.SpiderDouble, Cost = 3 },
                 new EnemyPick { Key = "unit.brute", Sheet = "brute", Hp = b.bruteHp, Power = b.brutePower, Ai = AiKind.BruteCycle, Cost = 4 },
+                new EnemyPick { Key = "unit.golem", Sheet = "golem", Hp = b.golemHp, Power = b.golemPower, Ai = AiKind.LowestBackliner, Cost = 3, Thorns = b.golemThorns },
+                new EnemyPick { Key = "unit.bat", Sheet = "bat", Hp = b.batHp, Power = b.batPower, Ai = AiKind.LowestBackliner, Cost = 1, Lifesteal = true },
+                new EnemyPick { Key = "unit.necro", Sheet = "necro", Hp = b.necroHp, Power = 0, Ai = AiKind.EnemyHealer, Cost = 3 },
             };
         }
 
@@ -196,7 +207,8 @@ namespace Tanker
             {
                 var p = picked[i];
                 units[i] = new UnitDef(p.Key, p.Sheet, ScaledHp(p.Hp, stage), ScaledPower(p.Power, stage),
-                                       p.Ai, chargeOffset: p.Ai == AiKind.BruteCycle ? (bruteOffset++ % 2) : 0);
+                                       p.Ai, chargeOffset: p.Ai == AiKind.BruteCycle ? (bruteOffset++ % 2) : 0,
+                                       thorns: p.Thorns, lifesteal: p.Lifesteal);
             }
             return new EncounterDef
             {
