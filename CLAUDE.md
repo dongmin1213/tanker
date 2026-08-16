@@ -24,10 +24,22 @@
 
 ## 코드 규약
 
-- **씬 의존 금지**: 모든 오브젝트는 `BattleBootstrap`이 런타임 생성. 씬 파일을 만들거나 커밋하지 않는다.
+- **VSA(Vertical Slice Architecture)**: 코드는 계층이 아니라 기능 슬라이스로 조직한다 —
+  `Scripts/Battle/`(전투), `Scripts/Run/`(런 진행), `Scripts/Shared/`(공용 인프라: UiKit·Balance·Loc·부트스트랩).
+  새 기능은 자기 슬라이스 폴더에 완결적으로 넣고, 슬라이스 간 참조는 Shared를 통하거나 명시적 공개 API로만.
+- **밸런스 수치 하드코딩 절대 금지**: 모든 게임 수치(HP·공격력·가격·보상·회복률·임계값 등)는
+  `Resources/balance.json` → `Balance` 로더가 유일한 출처다. 코드에 숫자 리터럴로 밸런스를 박으면 안 된다.
+  `TankerBalanceSearch`(검증기)도 같은 Balance를 읽는다 — 수치 변경은 json 한 곳 + `docs/design.md` 표 갱신으로 끝나야 한다.
+- **다국어(ko/en)**: 유저에게 보이는 모든 문자열은 `Loc.T(키)` / `Loc.F(키, 인자)`를 거친다. 직접 문자열 UI 노출 금지.
+  번역 테이블은 `Loc.cs`에, 언어 설정은 PlayerPrefs(타이틀에서 전환).
+- **최적화는 최우선 검토 대상**: 모든 변경·리뷰에서 성능 영향(할당/프레임당 작업/텍스처·스프라이트 생성 수명)을
+  기본 항목으로 검토한다. 매 프레임 할당(GC), 반복 Resources.Load, 캐시 없는 런타임 Sprite 생성은 금지.
+- **씬 의존 금지**: 모든 오브젝트는 `BattleBootstrap`이 런타임 생성. 씬 파일을 만들거나 커밋하지 않는다
+  (빌드는 `EditorTools.BuildGame`이 빌드 시점에 임시 씬을 생성).
 - UI는 uGUI 코드 생성(`BattleUI`). TMP 대신 legacy `Text` + `LegacyRuntime.ttf` (한글 폴백 때문).
-- 애니메이션은 코드 트윈만. 스프라이트 프레임 애니메이션은 만들지 않는다 (`docs/art-guide.md`의 전략).
-- 네임스페이스 `Tanker`. 게임 규칙은 `BattleManager`에만 — UI는 상태를 읽고 입력을 전달만 한다.
+- 애니메이션은 스프라이트 시트 프레임 애니메이션 + 코드 트윈 병용. 시트 규격·상태 매핑은 `docs/art-guide.md`를 따른다.
+- 네임스페이스 `Tanker`. 전투 규칙은 `BattleManager`에만, 런 규칙(노드·골드·업그레이드)은 `GameFlow`/`Run`에만 —
+  UI는 상태를 읽고 입력을 전달만 한다.
 - 밸런스 숫자를 바꾸면 `docs/design.md`의 표를 같이 갱신한다.
 
 ## 에셋 규약

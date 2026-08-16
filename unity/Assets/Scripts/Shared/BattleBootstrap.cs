@@ -3,13 +3,14 @@ using UnityEngine.EventSystems;
 
 namespace Tanker
 {
-    /// 어떤 씬에서든 재생만 누르면 전투가 뜨도록, 필요한 오브젝트를 코드로 생성한다.
+    /// 어떤 씬에서든 재생만 누르면 게임이 뜨도록, 필요한 오브젝트를 코드로 생성한다.
     public static class BattleBootstrap
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         public static void Boot()
         {
-            if (Object.FindFirstObjectByType<BattleManager>() != null) return;
+            Application.targetFrameRate = 60; // 발열 방지 — 에디터/모바일 공통 프레임 캡 (최적화 규약)
+            if (Object.FindFirstObjectByType<GameFlow>() != null) return;
 
             var cam = Camera.main;
             if (cam == null)
@@ -28,9 +29,7 @@ namespace Tanker
                 es.AddComponent<StandaloneInputModule>();
             }
 
-            var battle = new GameObject("Battle");
-            battle.AddComponent<BattleManager>();
-            battle.AddComponent<BattleUI>();
+            new GameObject("Game").AddComponent<GameFlow>();
         }
     }
 }

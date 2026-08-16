@@ -25,7 +25,11 @@ def color_dist2(a, b):
 
 
 def key_background(img, tolerance):
-    """가장자리에서 연결된 마젠타 계열 영역만 flood fill로 투명화."""
+    """마젠타 배경 투명화: 가장자리 연결 영역은 flood fill + 폐쇄 영역은 전역 스윕.
+
+    시트(2x2 그리드)에서는 캐릭터 실루엣 안에 갇힌 마젠타 주머니가 생기므로
+    flood fill만으로는 잔여물이 남는다. 전역 스윕은 순수 마젠타 근방만 지우므로
+    캐릭터의 보라/분홍 계열(거리 tolerance 초과)은 보존된다."""
     img = img.convert("RGBA")
     px = img.load()
     w, h = img.size
@@ -48,14 +52,49 @@ def key_background(img, tolerance):
             continue
         px[x, y] = (0, 0, 0, 0)
         queue.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+    # 폐쇄 영역 스윕 — 실루엣 내부에 갇힌 마젠타 주머니 제거
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if a != 0 and color_dist2((r, g, b), MAGENTA) <= tol2:
+                px[x, y] = (0, 0, 0, 0)
     return img
 
 
-def pixelize(src, size, colors, tolerance):
+def align_cells(img, mode):
+    """2x2 시트의 각 셀에서 실루엣(알파 bbox)을 기준 위치로 정렬한다.
+
+    AI 생성 시트는 셀마다 캐릭터 위치가 어긋나 프레임 재생 시 좌표 지터가 생긴다.
+    bottom: 하단 중앙 고정(발 기준 — 캐릭터용), center: 정중앙 고정(FX 버스트용)."""
+    w, h = img.size
+    cw, ch = w // 2, h // 2
+    bottom_margin = max(4, ch // 12)
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    for cy in range(2):
+        for cx in range(2):
+            cell = img.crop((cx * cw, cy * ch, (cx + 1) * cw, (cy + 1) * ch))
+            bbox = cell.getchannel("A").getbbox()
+            if bbox is None:
+                continue
+            bw = bbox[2] - bbox[0]
+            bh = bbox[3] - bbox[1]
+            dx = (cw - bw) // 2 - bbox[0]
+            if mode == "bottom":
+                dy = (ch - bottom_margin - bbox[3])
+            else:  # center
+                dy = (ch - bh) // 2 - bbox[1]
+            out.paste(cell, (cx * cw + dx, cy * ch + dy), cell)
+    return out
+
+
+def pixelize(src, size, colors, tolerance, align="none"):
     img = Image.open(src).convert("RGB")
     img = img.resize((size, size), Image.NEAREST)
     img = img.quantize(colors=colors, method=Image.MEDIANCUT).convert("RGB")
-    return key_background(img, tolerance)
+    img = key_background(img, tolerance)
+    if align != "none":
+        img = align_cells(img, align)
+    return img
 
 
 def main():
@@ -67,6 +106,8 @@ def main():
                     help="마젠타 키잉 색 거리 허용치 (기본 60; 캐릭터의 보라 계열이 지워지면 낮출 것)")
     ap.add_argument("-o", "--outdir", type=Path, default=None,
                     help="출력 폴더 (기본: 입력 파일 옆에 .pixel.png)")
+    ap.add_argument("-a", "--align", choices=["none", "bottom", "center"], default="none",
+                    help="2x2 시트 셀별 실루엣 정렬 — bottom: 캐릭터(발 고정), center: FX")
     args = ap.parse_args()
 
     for src in args.inputs:
@@ -76,7 +117,7 @@ def main():
         out = (args.outdir / f"{src.stem}.png") if args.outdir else src.with_suffix(".pixel.png")
         if args.outdir:
             args.outdir.mkdir(parents=True, exist_ok=True)
-        result = pixelize(src, args.size, args.colors, args.tolerance)
+        result = pixelize(src, args.size, args.colors, args.tolerance, args.align)
         result.save(out)
         print(f"{src} -> {out} ({args.size}x{args.size}, {args.colors}색)")
 

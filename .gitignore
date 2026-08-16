@@ -18,3 +18,11 @@ captures/
 
 # OS
 .DS_Store
+
+# 빌드 시점 생성 씬 (커밋 금지 — 규약: 씬 의존 금지)
+unity/Assets/Scenes/
+unity/Assets/Scenes.meta
+
+# Unity 자동 복구 씬 (에디터가 비정상 종료 시 생성)
+unity/Assets/_Recovery/
+unity/Assets/_Recovery.meta

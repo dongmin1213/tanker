@@ -5,170 +5,226 @@ using UnityEngine.UI;
 
 namespace Tanker
 {
-    /// 전 UI를 코드로 생성. 상태는 매 프레임 BattleManager에서 읽는다.
+    /// 전투 UI 전부를 코드로 생성 (v0.4: 가변 파티 + 카드 핸드). 상태는 BattleManager에서 읽고 입력만 전달.
+    /// 최적화: 텍스트류는 10Hz로만 갱신, 애니메이션만 매 프레임.
     public class BattleUI : MonoBehaviour
     {
+        const float IdleFps = 5f, ActionFps = 10f, FxFps = 12f;
+
         BattleManager mgr;
-        Font font;
         RectTransform root;
         readonly Dictionary<Unit, UnitView> views = new();
-        readonly Dictionary<Unit, RectTransform> lines = new();
+        readonly Dictionary<Unit, RectTransform[]> lines = new();
         readonly Dictionary<Unit, Text> intentLabels = new();
         readonly Dictionary<Unit, Vector2> posOf = new();
-        Text turnText, savedText, logText;
-        Button tauntBtn, coverBtn, braceBtn, goBtn;
+        Text turnText, savedText, logText, deckText;
+        readonly Button[] cardBtns = new Button[3];
+        readonly Text[] cardTexts = new Text[3];
+        Button goBtn;
         GameObject resultPanel;
-        Text resultText;
+        Text resultText, resultBtnText;
+        static Sprite sharedGlow;
+        Sprite glowSprite;
+        Sprite[] fxHit, fxHeal;
+        float uiTick;
 
         class UnitView
         {
             public Unit Unit;
             public RectTransform Rect;
             public Image Body;
+            public Image Sprite;
+            public Image Glow;
+            public Sprite[] Idle, Action, Alt;
+            public float ActionT;
             public Outline Outline;
-            public Text Name, Status;
+            public Text Name, Status, Incoming;
             public RectTransform HpFill;
             public Color BaseColor;
-            public Vector2 Impulse;   // 런지/넉백 잔여 오프셋 (감쇠)
-            public float FlashT;      // 피격 플래시 잔여 시간 비율
-            public float BobPhase;    // 숨쉬기 위상
+            public Vector2 Impulse;
+            public float FlashT;
+            public float BobPhase;
         }
 
-        RectTransform stage;          // 전장 컨테이너 — 화면 흔들림용
+        RectTransform stage;
         static readonly Vector2 StageHome = new Vector2(540, 960);
 
-        static Color Hex(string h) { ColorUtility.TryParseHtmlString("#" + h, out var c); return c; }
+        static Color Hex(string h) => UiKit.Hex(h);
 
         void Start()
         {
             mgr = GetComponent<BattleManager>();
             mgr.Popup += ShowPopup;
             mgr.Strike += OnStrike;
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            BuildCanvas();
+            glowSprite = sharedGlow != null ? sharedGlow : sharedGlow = MakeGlowSprite();
+            fxHit = LoadSheet("fx-hit");
+            fxHeal = LoadSheet("fx-heal");
+            root = UiKit.MakeCanvas("BattleCanvas", 20);
             BuildLayout();
         }
 
-        // ---------- 구축 ----------
-
-        void BuildCanvas()
+        void OnDestroy()
         {
-            var go = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-            var canvas = go.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            var scaler = go.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight = 0.5f;
-            root = go.GetComponent<RectTransform>();
+            if (mgr != null) { mgr.Popup -= ShowPopup; mgr.Strike -= OnStrike; }
+            if (root != null) Destroy(root.transform.root.gameObject);
         }
 
-        // center=true: 부모 중앙 기준(자식 요소용), false: 캔버스 좌하단 좌표계(최상위 배치용)
+        static Sprite[] LoadSheet(string name) => UiKit.LoadSheet(name);
+
+        static Sprite MakeGlowSprite()
+        {
+            const int S = 64;
+            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
+            for (int y = 0; y < S; y++)
+                for (int x = 0; x < S; x++)
+                {
+                    float d = Vector2.Distance(new Vector2(x, y), new Vector2(S / 2f, S / 2f)) / (S / 2f);
+                    float a = Mathf.Clamp01(1f - d);
+                    tex.SetPixel(x, y, new Color(1f, 1f, 1f, a * a));
+                }
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, S, S), new Vector2(0.5f, 0.5f), 100f);
+        }
+
+        static Vector2 SizeOf(Unit u)
+        {
+            switch (u.Sheet)
+            {
+                case "tank": return new Vector2(170, 190);
+                case "brute": case "orc": return new Vector2(180, 200);
+                case "boss": return new Vector2(240, 280);
+                case "warrior": case "beastkin": return new Vector2(150, 170);
+                case "slime": return new Vector2(130, 120);
+                case "spider": return new Vector2(170, 140);
+                default: return new Vector2(140, 160);
+            }
+        }
+
+        static Color FallbackColor(Unit u)
+        {
+            switch (u.Sheet)
+            {
+                case "tank": return Hex("5878b4");
+                case "dps": return Hex("c04858");
+                case "healer": return Hex("78b478");
+                case "warrior": return Hex("b47a3c");
+                case "mage": return Hex("8a5fc0");
+                case "ranger": return Hex("4f9a58");
+                case "assassin": return Hex("5a3f66");
+                case "beastkin": return Hex("8f7a5f");
+                case "brute": return Hex("7a4f8f");
+                case "boss": return Hex("8f3f3f");
+                case "archer": return Hex("9a8f6a");
+                case "slime": return Hex("3fa5a0");
+                case "orc": return Hex("6f7a3f");
+                case "shaman": return Hex("7a55c0");
+                case "spider": return Hex("8f3f55");
+                default: return Hex("6a8f4f");
+            }
+        }
+
         RectTransform Rt(string name, RectTransform parent, Vector2 pos, Vector2 size, bool center = false)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            var rt = go.GetComponent<RectTransform>();
-            rt.SetParent(parent, false);
-            rt.anchorMin = rt.anchorMax = center ? new Vector2(0.5f, 0.5f) : Vector2.zero;
-            rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = pos;
-            rt.sizeDelta = size;
-            return rt;
-        }
+            => UiKit.Rt(name, parent, pos, size, center);
 
         Image Panel(string name, RectTransform parent, Vector2 pos, Vector2 size, Color c, bool center = false)
-        {
-            var rt = Rt(name, parent, pos, size, center);
-            var img = rt.gameObject.AddComponent<Image>();
-            img.color = c;
-            return img;
-        }
+            => UiKit.Panel(name, parent, pos, size, c, center);
 
         Text Label(string name, RectTransform parent, Vector2 pos, Vector2 size, string text,
                    int fontSize, Color c, TextAnchor anchor = TextAnchor.MiddleCenter, bool bold = false, bool center = false)
-        {
-            var rt = Rt(name, parent, pos, size, center);
-            var t = rt.gameObject.AddComponent<Text>();
-            t.font = font; t.text = text; t.fontSize = fontSize; t.color = c;
-            t.alignment = anchor; t.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
-            t.horizontalOverflow = HorizontalWrapMode.Overflow;
-            t.verticalOverflow = VerticalWrapMode.Overflow;
-            t.raycastTarget = false;
-            return t;
-        }
-
-        Button BtnCentered(string name, RectTransform parent, Vector2 pos, Vector2 size, string text, System.Action onClick)
-        {
-            var btn = Btn(name, parent, pos, size, text, onClick);
-            var rt = btn.GetComponent<RectTransform>();
-            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            return btn;
-        }
-
-        Button Btn(string name, RectTransform parent, Vector2 pos, Vector2 size, string text, System.Action onClick)
-        {
-            var img = Panel(name, parent, pos, size, Hex("3a3153"));
-            var btn = img.gameObject.AddComponent<Button>();
-            btn.onClick.AddListener(() => onClick());
-            Label(name + "Txt", img.rectTransform, Vector2.zero, size, text, 40, Color.white, center: true);
-            return btn;
-        }
+            => UiKit.Label(name, parent, pos, size, text, fontSize, c, anchor, bold, center);
 
         void BuildLayout()
         {
             stage = Rt("stage", root, StageHome, new Vector2(1080, 1920));
-            Panel("bgTop", stage, new Vector2(540, 1330), new Vector2(1080, 1180), Hex("1a1626"));
-            Panel("bgBottom", root, new Vector2(540, 370), new Vector2(1080, 740), Hex("241d33"));
+            var bgSprite = Resources.Load<Sprite>("Art/bg-dungeon");
+            if (bgSprite == null)
+            {
+                var bgTex = Resources.Load<Texture2D>("Art/bg-dungeon");
+                if (bgTex != null)
+                    bgSprite = Sprite.Create(bgTex, new Rect(0, 0, bgTex.width, bgTex.height), new Vector2(0.5f, 0.5f), 128f);
+            }
+            if (bgSprite != null)
+            {
+                var bg = Panel("bg", stage, new Vector2(540, 960), new Vector2(1350, 2400), Color.white);
+                bg.sprite = bgSprite;
+                bg.raycastTarget = false;
+            }
+            else Panel("bgTop", stage, new Vector2(540, 1330), new Vector2(1080, 1180), Hex("1a1626"));
+            var bottom = UiKit.FramedPanel("bgBottom", root, new Vector2(540, 160), new Vector2(1120, 1180));
+            bottom.raycastTarget = false;
 
             turnText = Label("turn", root, new Vector2(540, 1850), new Vector2(1000, 50), "", 40, Color.white, bold: true);
             savedText = Label("saved", root, new Vector2(540, 1790), new Vector2(1000, 40), "", 30, Hex("ffd75e"));
             logText = Label("log", root, new Vector2(540, 770), new Vector2(1020, 60), "", 34, Hex("cfc8e8"));
+            deckText = Label("deck", root, new Vector2(540, 715), new Vector2(1000, 36), "", 24, Hex("8f86ad"));
 
+            // 아군 슬롯 — 탱커 고정 + 동료 최대 4
             posOf[mgr.Tank] = new Vector2(400, 1120);
-            posOf[mgr.Dps] = new Vector2(240, 1300);
-            posOf[mgr.Healer] = new Vector2(155, 1480);
-            posOf[mgr.GoblinA] = new Vector2(730, 1480);
-            posOf[mgr.GoblinB] = new Vector2(890, 1300);
-            posOf[mgr.Brute] = new Vector2(770, 1090);
+            var allySlots = new[]
+            {
+                new Vector2(265, 1310), new Vector2(105, 1360),
+                new Vector2(290, 1530), new Vector2(120, 1600),
+            };
+            for (int i = 1; i < mgr.Allies.Count && i - 1 < allySlots.Length; i++)
+                posOf[mgr.Allies[i]] = allySlots[i - 1];
 
-            // 인텐트 라인을 유닛보다 먼저 만들어 뒤에 깔리게 한다
+            // 적 슬롯 — 큰 놈이 앞
+            var slots = mgr.Enemies.Count switch
+            {
+                1 => new[] { new Vector2(770, 1160) },
+                2 => new[] { new Vector2(760, 1130), new Vector2(885, 1500) },
+                3 => new[] { new Vector2(770, 1100), new Vector2(890, 1310), new Vector2(730, 1490) },
+                _ => new[] { new Vector2(770, 1090), new Vector2(920, 1280), new Vector2(730, 1450), new Vector2(930, 1560) },
+            };
+            var ordered = new List<Unit>(mgr.Enemies);
+            ordered.Sort((a, b) => (SizeOf(b).x * SizeOf(b).y).CompareTo(SizeOf(a).x * SizeOf(a).y));
+            for (int i = 0; i < ordered.Count; i++) posOf[ordered[i]] = slots[Mathf.Min(i, slots.Length - 1)];
+
             foreach (var e in mgr.Enemies)
             {
-                var line = Rt("line_" + e.Name, stage, Vector2.zero, new Vector2(0, 6));
-                line.pivot = new Vector2(0, 0.5f);
-                line.gameObject.AddComponent<Image>().color = Hex("ff6b6b");
-                line.GetComponent<Image>().raycastTarget = false;
-                lines[e] = line;
-                intentLabels[e] = Label("intent_" + e.Name, stage, posOf[e] + new Vector2(0, 130),
-                                        new Vector2(320, 40), "", 30, Hex("ff6b6b"), bold: true);
+                var pair = new RectTransform[2];
+                for (int i = 0; i < 2; i++)
+                {
+                    var line = Rt("line_" + e.Name + i, stage, Vector2.zero, new Vector2(0, 6));
+                    line.pivot = new Vector2(0, 0.5f);
+                    var li = line.gameObject.AddComponent<Image>();
+                    li.color = Hex("ff6b6b"); li.raycastTarget = false;
+                    line.gameObject.SetActive(false);
+                    pair[i] = line;
+                }
+                lines[e] = pair;
+                var size = SizeOf(e);
+                intentLabels[e] = Label("intent_" + e.Name, stage, posOf[e] + new Vector2(0, size.y * 0.75f + 40),
+                                        new Vector2(360, 40), "", 28, Hex("ff6b6b"), bold: true);
             }
 
-            MakeUnitView(mgr.Tank, Hex("5878b4"), new Vector2(170, 190));
-            MakeUnitView(mgr.Dps, Hex("c04858"), new Vector2(140, 160));
-            MakeUnitView(mgr.Healer, Hex("78b478"), new Vector2(140, 160));
-            MakeUnitView(mgr.GoblinA, Hex("6a8f4f"), new Vector2(140, 160));
-            MakeUnitView(mgr.GoblinB, Hex("6a8f4f"), new Vector2(140, 160));
-            MakeUnitView(mgr.Brute, Hex("7a4f8f"), new Vector2(190, 210));
+            foreach (var a in mgr.Allies) MakeUnitView(a);
+            foreach (var e in mgr.Enemies) MakeUnitView(e);
 
-            tauntBtn = Btn("taunt", root, new Vector2(165, 560), new Vector2(230, 120), "도발", () => mgr.PressSkill(SkillType.Taunt));
-            coverBtn = Btn("cover", root, new Vector2(415, 560), new Vector2(230, 120), "엄호", () => mgr.PressSkill(SkillType.Cover));
-            braceBtn = Btn("brace", root, new Vector2(665, 560), new Vector2(230, 120), "버티기", () => mgr.PressSkill(SkillType.Brace));
-            goBtn = Btn("go", root, new Vector2(915, 560), new Vector2(230, 120), "진행 ▶", () => mgr.EndTurn());
-
-            Label("hintTaunt", root, new Vector2(165, 470), new Vector2(240, 40), "적 1명을 2턴간\n나에게 고정", 22, Hex("8f86ad"));
-            Label("hintCover", root, new Vector2(415, 470), new Vector2(240, 40), "아군 1명 대신\n내가 맞기", 22, Hex("8f86ad"));
-            Label("hintBrace", root, new Vector2(665, 470), new Vector2(240, 40), "받는 피해 절반\n+3 회복", 22, Hex("8f86ad"));
+            // 핸드 카드 3장 + 진행
+            for (int i = 0; i < 3; i++)
+            {
+                int idx = i;
+                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(180 + i * 270, 560), new Vector2(250, 190), "", () => mgr.PressCard(idx), 26);
+                cardTexts[i] = cardBtns[i].GetComponentInChildren<Text>();
+            }
+            goBtn = UiKit.Btn("go", root, new Vector2(945, 560), new Vector2(210, 190), Loc.T("skill.go"), () => mgr.EndTurn(), 38);
+            Label("hintGo", root, new Vector2(540, 435), new Vector2(1000, 40), Loc.T("hint.cards"), 22, Hex("8f86ad"));
 
             resultPanel = Panel("result", root, new Vector2(540, 960), new Vector2(1080, 1920), new Color(0, 0, 0, 0.72f)).gameObject;
-            resultText = Label("resultTxt", resultPanel.GetComponent<RectTransform>(), new Vector2(0, 60), new Vector2(900, 200), "", 64, Color.white, bold: true, center: true);
-            var restart = BtnCentered("restart", resultPanel.GetComponent<RectTransform>(), new Vector2(0, -120), new Vector2(360, 120), "다시 도전", () => mgr.Restart());
-            restart.GetComponent<Image>().color = Hex("5b4f86");
+            var resultRt = resultPanel.GetComponent<RectTransform>();
+            resultText = Label("resultTxt", resultRt, new Vector2(0, 60), new Vector2(900, 200), "", 60, Color.white, bold: true, center: true);
+            var contBtn = UiKit.Btn("continue", resultRt, new Vector2(0, -140), new Vector2(420, 120), "", () => mgr.PressContinue(), center: true);
+            resultBtnText = contBtn.GetComponentInChildren<Text>();
             resultPanel.SetActive(false);
         }
 
-        void MakeUnitView(Unit u, Color c, Vector2 size)
+        void MakeUnitView(Unit u)
         {
-            var body = Panel("unit_" + u.Name, stage, posOf[u], size, c);
+            var size = SizeOf(u);
+            var c = FallbackColor(u);
+            var idle = LoadSheet(u.Sheet + "-idle");
+            var body = Panel("unit_" + u.Name, stage, posOf[u], size, idle != null ? Color.clear : c);
             var outline = body.gameObject.AddComponent<Outline>();
             outline.effectColor = Color.white;
             outline.effectDistance = new Vector2(5, 5);
@@ -177,108 +233,237 @@ namespace Tanker
             btn.transition = Selectable.Transition.None;
             btn.onClick.AddListener(() => mgr.ClickUnit(u));
 
-            var name = Label("name", body.rectTransform, new Vector2(0, -size.y / 2 - 28), new Vector2(220, 36), u.Name, 30, Color.white, bold: true, center: true);
-            var hpBg = Panel("hpBg", body.rectTransform, new Vector2(0, -size.y / 2 - 62), new Vector2(150, 16), Hex("120e1c"), center: true);
-            var fill = Rt("hpFill", hpBg.rectTransform, Vector2.zero, new Vector2(150, 16));
+            Image spriteImg = null, glow = null;
+            if (idle != null)
+            {
+                glow = Panel("glow", body.rectTransform, new Vector2(0, size.y * 0.08f), size * 1.7f, Color.clear, center: true);
+                glow.sprite = glowSprite; glow.raycastTarget = false;
+                var shadow = Panel("shadow", body.rectTransform, new Vector2(0, -size.y * 0.52f), new Vector2(size.x * 1.05f, size.y * 0.22f), new Color(0, 0, 0, 0.35f), center: true);
+                shadow.sprite = glowSprite; shadow.raycastTarget = false;
+                var spRt = Rt("sprite", body.rectTransform, new Vector2(0, size.y * 0.08f), size * 1.5f, center: true);
+                spriteImg = spRt.gameObject.AddComponent<Image>();
+                spriteImg.preserveAspect = true; spriteImg.raycastTarget = false;
+                spriteImg.sprite = idle[0];
+                if (u.Team == Team.Enemy) spRt.localScale = new Vector3(-1, 1, 1);
+            }
+
+            var name = Label("name", body.rectTransform, new Vector2(0, -size.y / 2 - 28), new Vector2(180, 34), u.Name, 25, Color.white, bold: true, center: true);
+            var hpBg = Panel("hpBg", body.rectTransform, new Vector2(0, -size.y / 2 - 60), new Vector2(150, 14), Hex("120e1c"), center: true);
+            var fill = Rt("hpFill", hpBg.rectTransform, Vector2.zero, new Vector2(150, 14));
             fill.anchorMin = fill.anchorMax = new Vector2(0, 0.5f);
             fill.pivot = new Vector2(0, 0.5f);
             fill.anchoredPosition = Vector2.zero;
             var fillImg = fill.gameObject.AddComponent<Image>();
             fillImg.color = Hex("62d96a");
             fillImg.raycastTarget = false;
-            var status = Label("status", body.rectTransform, new Vector2(0, -size.y / 2 - 96), new Vector2(240, 32), "", 26, Hex("ffb0e0"), center: true);
+            var status = Label("status", body.rectTransform, new Vector2(0, -size.y / 2 - 92), new Vector2(240, 30), "", 24, Hex("ffb0e0"), center: true);
+            Text incoming = null;
+            if (u.Team == Team.Ally)
+                incoming = Label("incoming", body.rectTransform, new Vector2(0, -size.y / 2 - 122), new Vector2(240, 28), "", 22, Hex("ff8f7a"), center: true);
 
-            views[u] = new UnitView { Unit = u, Rect = body.rectTransform, Body = body, Outline = outline, Name = name, Status = status, HpFill = fill, BaseColor = c, BobPhase = views.Count * 1.3f };
+            var alt = u.IsTank ? LoadSheet("tank-brace") : LoadSheet(u.Sheet + "-charge");
+            var action = LoadSheet(u.Sheet + "-attack") ?? LoadSheet(u.Sheet + "-cast");
+            views[u] = new UnitView
+            {
+                Unit = u, Rect = body.rectTransform, Body = body, Sprite = spriteImg, Glow = glow,
+                Idle = idle, Action = action, Alt = alt,
+                Outline = outline, Name = name, Status = status, Incoming = incoming, HpFill = fill, BaseColor = c,
+                BobPhase = views.Count * 1.3f
+            };
         }
 
-        // ---------- 매 프레임 갱신 ----------
+        // ---------- 갱신 ----------
 
         void Update()
         {
             if (mgr == null || views.Count == 0) return;
 
-            turnText.text = mgr.Turn + "턴  |  탱커의 의무: 아무도 죽게 두지 않는다";
-            savedText.text = "막아낸 피해 누적: " + mgr.TotalSaved;
-            logText.text = mgr.Log;
+            uiTick -= Time.deltaTime;
+            bool tick = uiTick <= 0f;
+            if (tick) uiTick = 0.1f; // 텍스트류 10Hz — GC·발열 최적화
 
-            foreach (var v in views.Values) RefreshUnit(v);
-            foreach (var e in mgr.Enemies) RefreshIntent(e);
+            if (tick)
+            {
+                turnText.text = Loc.F("bt.header", mgr.Turn, mgr.EncounterTitle);
+                savedText.text = Loc.F("bt.score", mgr.RedirectedSaved, mgr.MitigatedSaved);
+                logText.text = mgr.Log;
+                deckText.text = Loc.F("bt.deck", mgr.Hand.Count, mgr.TotalDeckInfo());
+                RefreshCards();
+                foreach (var v in views.Values) RefreshUnitText(v);
+                foreach (var e in mgr.Enemies) RefreshIntent(e);
+            }
 
-            bool taunt = mgr.TauntReady, skill = mgr.CanUseSkill;
-            tauntBtn.interactable = taunt;
-            coverBtn.interactable = skill;
-            braceBtn.interactable = skill;
-            goBtn.interactable = mgr.Phase == Phase.Player;
-            tauntBtn.GetComponentInChildren<Text>().text = mgr.TauntCooldown > 0 ? "도발 (쿨 " + mgr.TauntCooldown + ")" : "도발";
-            tauntBtn.GetComponent<Image>().color = mgr.Pending == SkillType.Taunt ? Hex("5b4f86") : Hex("3a3153");
-            coverBtn.GetComponent<Image>().color = mgr.Pending == SkillType.Cover ? Hex("5b4f86") : Hex("3a3153");
+            foreach (var v in views.Values) RefreshUnitVisual(v);
 
             bool over = mgr.Phase == Phase.Won || mgr.Phase == Phase.Lost;
             if (resultPanel.activeSelf != over)
             {
                 resultPanel.SetActive(over);
-                if (over) resultText.text = mgr.Phase == Phase.Won
-                    ? "던전 클리어!\n막아낸 피해 " + mgr.TotalSaved
-                    : "팀을 지키지 못했다...";
+                if (over)
+                {
+                    if (mgr.Phase == Phase.Won)
+                    {
+                        resultText.text = Loc.F("result.win", mgr.EncounterTitle, mgr.RedirectedSaved, mgr.MitigatedSaved)
+                            + (mgr.RewardGold > 0 ? "\n" + Loc.F("result.loot", mgr.RewardGold) : "");
+                        resultBtnText.text = Loc.T("result.continue");
+                    }
+                    else
+                    {
+                        resultText.text = Loc.T("result.lose");
+                        resultBtnText.text = Loc.T("result.view");
+                    }
+                }
             }
         }
 
-        void RefreshUnit(UnitView v)
+        void RefreshCards()
+        {
+            bool player = mgr.Phase == Phase.Player;
+            for (int i = 0; i < 3; i++)
+            {
+                bool has = i < mgr.Hand.Count;
+                cardBtns[i].gameObject.SetActive(has);
+                if (!has) continue;
+                var card = mgr.Hand[i];
+                cardTexts[i].text = Cards.NameOf(card) + "\n<size=20>" + Loc.T("card." + card + ".s") + "</size>";
+                cardBtns[i].interactable = player && mgr.CardPlayable(i);
+                UiKit.SetSelected(cardBtns[i], mgr.PendingCard == i || mgr.PlannedCard == i);
+            }
+            goBtn.interactable = player && mgr.PendingCard < 0;
+        }
+
+        void RefreshUnitText(UnitView v)
         {
             var u = v.Unit;
             float pct = Mathf.Clamp01(u.Hp / (float)u.MaxHp);
-            v.HpFill.sizeDelta = new Vector2(150 * pct, 16);
+            v.HpFill.sizeDelta = new Vector2(150 * pct, 14);
             v.Name.text = u.Name + "  " + u.Hp + "/" + u.MaxHp;
 
-            // 숨쉬기 + 런지/넉백 잔향 + 피격 플래시
-            float bob = u.Alive ? Mathf.Sin(Time.time * 2.2f + v.BobPhase) * 5f : 0f;
+            if (!u.Alive) v.Status.text = Loc.T("st.dead");
+            else if (u.Team == Team.Enemy && u.Enraged) v.Status.text = u.TauntTurns > 0 ? Loc.F("st.enragedTaunt", u.TauntTurns) : Loc.T("st.enraged");
+            else if (u.Team == Team.Enemy && u.TauntTurns > 0) v.Status.text = Loc.F("st.taunted", u.TauntTurns);
+            else if (u.Team == Team.Enemy && u.Stunned) v.Status.text = Loc.T("st.stunned");
+            else if (mgr.PlannedTarget == u && mgr.PlannedCard >= 0) v.Status.text = Loc.F("st.cardPlanned", Cards.NameOf(mgr.Hand[mgr.PlannedCard]));
+            else if (u.Shielded) v.Status.text = Loc.T("st.shielded");
+            else if (u.IsTank && mgr.Bracing) v.Status.text = Loc.T("st.bracing");
+            else if (u.Shaken) v.Status.text = Loc.T("st.shaken");
+            else if (mgr.CoverTarget == u) v.Status.text = Loc.T("st.covered");
+            else v.Status.text = "";
+
+            if (v.Incoming != null)
+            {
+                int inc = u.Alive && mgr.Phase == Phase.Player ? mgr.IncomingPreview(u) : 0;
+                v.Incoming.text = inc > 0 ? Loc.F("st.incoming", inc) : "";
+            }
+        }
+
+        void RefreshUnitVisual(UnitView v)
+        {
+            var u = v.Unit;
+            bool clickable = false;
+            if (mgr.Phase == Phase.Player && u.Alive && mgr.PendingCard >= 0)
+            {
+                var need = Cards.TargetOf(mgr.Hand[mgr.PendingCard]);
+                clickable = (need == CardTarget.Enemy && u.Team == Team.Enemy)
+                         || (need == CardTarget.Ally && u.Team == Team.Ally && !u.IsTank);
+            }
+
+            float bob = v.Idle == null && u.Alive ? Mathf.Sin(Time.time * 2.2f + v.BobPhase) * 5f : 0f;
             v.Rect.anchoredPosition = posOf[u] + new Vector2(0, bob) + v.Impulse;
             v.Impulse = Vector2.Lerp(v.Impulse, Vector2.zero, Time.deltaTime * 10f);
             v.FlashT = Mathf.Max(0, v.FlashT - Time.deltaTime * 3.5f);
-            var baseColor = u.Alive ? v.BaseColor : new Color(0.25f, 0.25f, 0.28f, 0.6f);
-            v.Body.color = Color.Lerp(baseColor, Color.white, v.FlashT);
 
-            if (!u.Alive) v.Status.text = "사망";
-            else if (u.Team == Team.Enemy && u.Enraged) v.Status.text = u.TauntTurns > 0 ? "격노·도발됨 " + u.TauntTurns : "격노";
-            else if (u.Team == Team.Enemy && u.TauntTurns > 0) v.Status.text = "도발됨 " + u.TauntTurns;
-            else if (u.Shaken) v.Status.text = "위축";
-            else if (mgr.CoverTarget == u) v.Status.text = "엄호받는 중";
-            else v.Status.text = "";
+            if (v.Sprite != null)
+            {
+                v.Sprite.sprite = CurrentFrame(v);
+                v.Sprite.color = u.Alive ? Color.white : new Color(0.45f, 0.42f, 0.5f, 0.7f);
+                float sel = clickable ? 0.22f + Mathf.Sin(Time.time * 6f) * 0.08f : 0f;
+                v.Glow.color = v.FlashT > 0.01f
+                    ? new Color(1f, 1f, 1f, v.FlashT * 0.6f)
+                    : new Color(1f, 0.85f, 0.35f, sel);
+                v.Outline.enabled = false;
+            }
+            else
+            {
+                var baseColor = u.Alive ? v.BaseColor : new Color(0.25f, 0.25f, 0.28f, 0.6f);
+                v.Body.color = Color.Lerp(baseColor, Color.white, v.FlashT);
+                v.Outline.enabled = clickable;
+            }
+        }
 
-            bool clickable = mgr.Phase == Phase.Player && u.Alive &&
-                ((mgr.Pending == SkillType.Taunt && u.Team == Team.Enemy) ||
-                 (mgr.Pending == SkillType.Cover && u.Team == Team.Ally && !u.IsTank));
-            v.Outline.enabled = clickable;
+        Sprite CurrentFrame(UnitView v)
+        {
+            var u = v.Unit;
+            if (!u.Alive) return v.Idle[0];
+            if (v.ActionT > 0f && v.Action != null)
+            {
+                float dur = v.Action.Length / ActionFps;
+                int i = Mathf.Min(v.Action.Length - 1, (int)((dur - v.ActionT) * ActionFps));
+                v.ActionT -= Time.deltaTime;
+                return v.Action[i];
+            }
+            Sprite[] seq = v.Idle;
+            if (u.IsTank && v.Alt != null && mgr.Bracing) seq = v.Alt;
+            else if (u.Charging && v.Alt != null) seq = v.Alt;
+            return seq[(int)(Time.time * IdleFps + v.BobPhase * 3f) % seq.Length];
+        }
+
+        void DrawLine(RectTransform line, Vector2 from, Vector2 to, Color c)
+        {
+            line.gameObject.SetActive(true);
+            var d = to - from;
+            line.anchoredPosition = from;
+            line.sizeDelta = new Vector2(Mathf.Max(0, d.magnitude - 90), 6);
+            line.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
+            line.GetComponent<Image>().color = new Color(c.r, c.g, c.b, 0.65f);
         }
 
         void RefreshIntent(Unit e)
         {
-            var line = lines[e];
+            var pair = lines[e];
             var label = intentLabels[e];
-            if (!e.Alive) { line.gameObject.SetActive(false); label.text = ""; return; }
-            if (e.Charging)
+            pair[0].gameObject.SetActive(false);
+            pair[1].gameObject.SetActive(false);
+
+            if (!e.Alive || mgr.Phase != Phase.Player) { label.text = ""; return; }
+            if (mgr.IsStunnedNow(e)) { label.text = Loc.T("intent.stunned"); label.color = Hex("ffcc80"); return; }
+            if (e.Charging) { label.text = Loc.T("intent.charge"); label.color = Hex("d8a5ff"); return; }
+
+            if (e.Ai == AiKind.ShamanCurse)
             {
-                line.gameObject.SetActive(false);
-                label.text = "힘 모으는 중...";
-                label.color = Hex("d8a5ff");
+                if (mgr.IsTauntedNow(e)) { label.text = Loc.T("intent.curseWasted"); label.color = Hex("d8a5ff"); return; }
+                var ct = e.CurseIntent;
+                if (ct == null || !ct.Alive) { label.text = ""; return; }
+                label.text = Loc.F("intent.curse", ct.Name);
+                label.color = Hex("c08aff");
+                DrawLine(pair[0], posOf[e], posOf[ct], Hex("c08aff"));
                 return;
             }
+
+            if (mgr.AoeActive(e))
+            {
+                int i = 0;
+                string parts = "";
+                foreach (var b in mgr.Allies)
+                {
+                    if (b.IsTank || !b.Alive || i >= 2) continue;
+                    bool covered = mgr.CoverPreview == b;
+                    var recv = covered ? mgr.Tank : b;
+                    DrawLine(pair[i++], posOf[e], posOf[recv], covered ? Hex("ffd75e") : Hex("ff6b6b"));
+                    parts += (parts == "" ? "" : " · ") + recv.Name + " " + mgr.EffectiveAoeDamage(e, b);
+                }
+                label.text = Loc.F("intent.aoe", parts);
+                label.color = Hex("ff6b6b");
+                return;
+            }
+
             var target = mgr.EffectiveTarget(e);
-            if (target == null || mgr.Phase != Phase.Player) { line.gameObject.SetActive(false); label.text = e.Charging ? label.text : ""; return; }
-
-            bool redirected = target.IsTank && e.Intent != null && !e.Intent.IsTank;
+            if (target == null) { label.text = ""; return; }
+            bool redirected = target.IsTank && (e.AoeIntent || (e.Intent != null && !e.Intent.IsTank));
             var c = redirected ? Hex("ffd75e") : Hex("ff6b6b");
-            label.text = "▶ " + target.Name + "에게 " + e.Power;
+            label.text = Loc.F("intent.single", target.Name, mgr.EffectiveDamage(e));
             label.color = c;
-
-            line.gameObject.SetActive(true);
-            var from = posOf[e];
-            var to = posOf[target];
-            var d = to - from;
-            line.anchoredPosition = from;
-            line.sizeDelta = new Vector2(d.magnitude - 90, 6);
-            line.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
-            line.GetComponent<Image>().color = new Color(c.r, c.g, c.b, 0.65f);
+            DrawLine(pair[0], posOf[e], posOf[target], c);
         }
 
         // ---------- 연출 ----------
@@ -288,17 +473,43 @@ namespace Tanker
             if (views.TryGetValue(attacker, out var av) && posOf.ContainsKey(victim))
             {
                 var dir = (posOf[victim] - posOf[attacker]).normalized;
-                av.Impulse = dir * 42f;                       // 공격자 런지
+                av.Impulse = dir * 42f;
+                if (av.Action != null) av.ActionT = av.Action.Length / ActionFps;
             }
             if (views.TryGetValue(victim, out var vv) && posOf.ContainsKey(attacker))
             {
-                vv.FlashT = attacker == mgr.Healer ? 0.5f : 1f;
-                if (attacker != mgr.Healer)
+                bool heal = attacker.Team == Team.Ally && attacker.Role == Role.Healer;
+                vv.FlashT = heal ? 0.5f : 1f;
+                SpawnFx(heal ? fxHeal : fxHit, posOf[victim]);
+                if (!heal)
                 {
-                    vv.Impulse = (posOf[victim] - posOf[attacker]).normalized * 20f; // 피격 넉백
-                    if (victim.IsTank) StartCoroutine(StageShake());                 // 탱커 피격 = 화면 흔들림
+                    vv.Impulse = (posOf[victim] - posOf[attacker]).normalized * 20f;
+                    if (victim.IsTank) StartCoroutine(StageShake());
                 }
             }
+        }
+
+        void SpawnFx(Sprite[] frames, Vector2 pos)
+        {
+            if (frames == null || root == null) return;
+            var rt = Rt("fx", stage, pos + new Vector2(0, 20), new Vector2(230, 230));
+            var img = rt.gameObject.AddComponent<Image>();
+            img.raycastTarget = false;
+            img.preserveAspect = true;
+            img.sprite = frames[0];
+            StartCoroutine(PlayFx(img, frames));
+        }
+
+        IEnumerator PlayFx(Image img, Sprite[] frames)
+        {
+            float dur = frames.Length / FxFps;
+            for (float t = 0; t < dur; t += Time.deltaTime)
+            {
+                if (img == null) yield break;
+                img.sprite = frames[Mathf.Min(frames.Length - 1, (int)(t * FxFps))];
+                yield return null;
+            }
+            if (img != null) Destroy(img.gameObject);
         }
 
         IEnumerator StageShake()
@@ -312,11 +523,9 @@ namespace Tanker
             stage.anchoredPosition = StageHome;
         }
 
-        // ---------- 팝업 ----------
-
         void ShowPopup(Unit u, string text, Color c)
         {
-            if (!posOf.ContainsKey(u)) return;
+            if (!posOf.ContainsKey(u) || root == null) return;
             var t = Label("popup", root, posOf[u] + new Vector2(0, 80), new Vector2(400, 60), text, 44, c, bold: true);
             StartCoroutine(FloatAway(t));
         }
@@ -327,11 +536,12 @@ namespace Tanker
             float dur = 0.8f;
             for (float el = 0; el < dur; el += Time.deltaTime)
             {
+                if (t == null) yield break;
                 rt.anchoredPosition += new Vector2(0, 130 * Time.deltaTime);
                 t.color = new Color(t.color.r, t.color.g, t.color.b, 1f - el / dur * 0.9f);
                 yield return null;
             }
-            Destroy(t.gameObject);
+            if (t != null) Destroy(t.gameObject);
         }
     }
 }

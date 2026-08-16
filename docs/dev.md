@@ -56,4 +56,14 @@ python3 tools/mcp_unity.py call Unity_GetConsoleLogs '{}'
 ## 에디터 유틸
 
 `unity/Assets/Editor/TankerEditorTools.cs` — 리플렉션 등 스니펫에서 금지된 코드의 수용처.
-현재: `SetPortraitGameView()` (게임 뷰 1080x1920 전환).
+현재: `SetPortraitGameView()` (게임 뷰 1080x1920 전환), `SetGameViewSize(w, h, name)` (임의 해상도 — 비율 내성 테스트용, 예: 1080x2340),
+`BuildGame(outputPath, target)` (빌드 시점에 `Assets/Scenes/Build.unity` 생성 후 빌드 — 씬 커밋 금지 규약 유지).
+
+## 빌드 & TestFlight
+
+- 씬은 커밋하지 않으므로 빌드는 반드시 `TankerEditorTools.BuildGame(path, target)` 경유 (임시 씬 자동 생성).
+- macOS 스탠드얼론 빌드 검증 완료. iOS Build Support는 Hub CLI로 설치됨 (에디터 재시작 후 인식).
+- TestFlight 업로드까지 남은 **유저 액션 2가지**:
+  1. Apple Developer Program 등록 ($99/년) — https://developer.apple.com/programs/
+  2. Xcode에서 Apple ID 로그인 (Settings → Accounts)
+- 이후 Claude가 진행: 번들 ID 설정 → iOS 빌드 → Xcode 아카이브 → App Store Connect 업로드.
