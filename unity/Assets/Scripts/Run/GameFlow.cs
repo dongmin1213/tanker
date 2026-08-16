@@ -178,118 +178,159 @@ namespace Tanker
             Gear();
             Banner(Loc.T("map.h1"), 790);
 
-            // 파티 현황 스트립 — 미니 초상 + HP
-            var strip = UiKit.FramedPanel("strip", screen, new Vector2(0, 600), new Vector2(1000, 210), center: true);
+            // 파티 현황 스트립 — 미니 초상 + HP (맵이 주인공 — 스트립은 낮게)
+            var strip = UiKit.FramedPanel("strip", screen, new Vector2(0, 618), new Vector2(1000, 175), center: true);
             strip.raycastTarget = false;
             int count = 1 + run.Party.Count;
             float step = Mathf.Min(190f, 880f / count);
             float x0 = -(count - 1) * step / 2f;
-            DrawMiniAlly(x0, 625, "tank", Loc.T("unit.tank"), run.TankHp, RunState.TankMax);
+            DrawMiniAlly(x0, 638, "tank", Loc.T("unit.tank"), run.TankHp, RunState.TankMax);
             for (int i = 0; i < run.Party.Count; i++)
             {
                 var cd = RunData.Class(run.Party[i]);
-                DrawMiniAlly(x0 + (i + 1) * step, 625, cd.Sheet, Loc.T(cd.LocKey), run.PartyHp[i], cd.Hp);
+                DrawMiniAlly(x0 + (i + 1) * step, 638, cd.Sheet, Loc.T(cd.LocKey), run.PartyHp[i], cd.Hp);
             }
-            UiKit.Label("gold", screen, new Vector2(0, 512), new Vector2(940, 36),
+            UiKit.Label("gold", screen, new Vector2(0, 495), new Vector2(940, 36),
                 run.Gold + "G   ·   " + Loc.F("map.deck", run.Deck.Count), 26, UiKit.Hex("ffd75e"), center: true);
 
-            // 지그재그 경로 + 노드 아이콘
-            var pos = new Vector2[RunData.Nodes.Length];
-            for (int i = 0; i < RunData.Nodes.Length; i++)
-            {
-                float ny = 360 - i * 135;
-                float nx = (i % 4) switch { 0 => -190f, 1 => 0f, 2 => 190f, _ => 0f };
-                pos[i] = new Vector2(nx, ny);
-            }
-            for (int i = 0; i + 1 < pos.Length; i++) PathLine(pos[i], pos[i + 1]);
-            for (int i = 0; i < pos.Length; i++) DrawNode(i, pos[i]);
+            // 분기 그래프 — 연결선 먼저(현재 방에서 나가는 길은 금색), 그 위에 방
+            var reach = run.Reachable();
+            foreach (var n in run.Map)
+                foreach (var nx in n.Next)
+                    PathLine(NodePos(n), NodePos(run.Map[nx]), hot: run.Cur == n.Id);
+            foreach (var n in run.Map)
+                DrawMapNode(n, reach.Contains(n.Id));
 
-            UiKit.Btn("enter", screen, new Vector2(0, -700), new Vector2(520, 130),
-                Loc.T("map.enter") + "  —  " + RunData.NodeTitle(run.Node), () => EnterNode(), 32, center: true);
+            UiKit.Label("pick", screen, new Vector2(0, -700), new Vector2(1000, 40),
+                Loc.T("map.pick"), 26, UiKit.Hex("ffd75e"), center: true);
         }
+
+        static Vector2 NodePos(MapNode n) => new Vector2(n.X, -570 + n.Floor * 132);
 
         void DrawMiniAlly(float x, float y, string sheet, string name, int hp, int maxHp)
         {
             var frames = UiKit.LoadSheet(sheet + "-idle");
-            var icon = UiKit.Panel("m_" + name + x, screen, new Vector2(x, y + 15), new Vector2(105, 115), Color.white, center: true);
+            var icon = UiKit.Panel("m_" + name + x, screen, new Vector2(x, y + 10), new Vector2(92, 100), Color.white, center: true);
             if (frames != null) { icon.sprite = frames[0]; icon.preserveAspect = true; }
             else icon.color = UiKit.Hex("3a3153");
             icon.raycastTarget = false;
             float pct = Mathf.Clamp01(hp / (float)maxHp);
-            UiKit.Panel("mhbg_" + name + x, screen, new Vector2(x, y - 58), new Vector2(96, 12), UiKit.Hex("241d33"), center: true).raycastTarget = false;
-            var fill = UiKit.Panel("mhp_" + name + x, screen, new Vector2(x - 48 + 48 * pct, y - 58), new Vector2(96 * pct, 12),
+            UiKit.Panel("mhbg_" + name + x, screen, new Vector2(x, y - 50), new Vector2(96, 11), UiKit.Hex("241d33"), center: true).raycastTarget = false;
+            var fill = UiKit.Panel("mhp_" + name + x, screen, new Vector2(x - 48 + 48 * pct, y - 50), new Vector2(96 * pct, 11),
                 pct > 0.5f ? UiKit.Hex("8fd4a8") : UiKit.Hex("e8895e"), center: true);
             fill.raycastTarget = false;
-            UiKit.Label("mn_" + name + x, screen, new Vector2(x, y - 85), new Vector2(150, 28), name + " " + hp, 20, UiKit.Hex("cfc8e8"), center: true);
+            UiKit.Label("mn_" + name + x, screen, new Vector2(x, y - 74), new Vector2(150, 26), name + " " + hp, 19, UiKit.Hex("cfc8e8"), center: true);
         }
 
-        void PathLine(Vector2 a, Vector2 b)
+        void PathLine(Vector2 a, Vector2 b, bool hot)
         {
             var mid = (a + b) / 2f; var d = b - a;
-            var line = UiKit.Panel("line", screen, mid, new Vector2(d.magnitude - 90, 7), UiKit.Hex("5b4f86"), center: true);
+            var line = UiKit.Panel("line", screen, mid, new Vector2(d.magnitude - 80, hot ? 9 : 6),
+                hot ? UiKit.Hex("c9a44a") : UiKit.Hex("4a4468"), center: true);
             line.rectTransform.localRotation = Quaternion.Euler(0, 0, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
             line.raycastTarget = false;
         }
 
-        static string NodeSheet(NodeType t) => t switch
+        /// 전용 아이콘 우선, 도착 전엔 유닛 시트 폴백 (전용 아이콘 = 종류 즉시 식별 — 크리틱 반영)
+        static string[] NodeSheets(NodeType t) => t switch
         {
-            NodeType.Battle => "goblin-idle",
-            NodeType.Boss => "boss-idle",
-            NodeType.Event => "spider-idle",
-            NodeType.Rest => "fx-heal",
-            _ => null, // Choice — 물음표 라벨
+            NodeType.Battle => new[] { "icon-battle", "goblin-idle" },
+            NodeType.Elite => new[] { "icon-elite", "brute-idle" },
+            NodeType.Boss => new[] { "boss-idle" },
+            NodeType.Event => new[] { "icon-trap", "spider-idle" },
+            NodeType.Rest => new[] { "icon-rest", "fx-heal" },
+            NodeType.Shop => new[] { "icon-shop" },
+            NodeType.Treasure => new[] { "icon-chest" },
+            _ => new string[0],
         };
 
-        void DrawNode(int i, Vector2 p)
-        {
-            bool done = i < run.Node, now = i == run.Node;
-            float s = now ? 150 : 124;
-            var frame = UiKit.FramedPanel("node" + i, screen, p, new Vector2(s, s), center: true);
-            frame.raycastTarget = false;
-            if (done) frame.color = new Color(0.45f, 0.5f, 0.45f);
-            else if (now) frame.color = new Color(1.25f, 1.2f, 0.85f);
+        static string NodeGlyph(NodeType t) => t == NodeType.Shop ? "$" : t == NodeType.Treasure ? "G" : "?";
 
-            var sheet = NodeSheet(RunData.Nodes[i]);
-            var frames = UiKit.LoadSheet(sheet);
+        void DrawMapNode(MapNode n, bool canGo)
+        {
+            var p = NodePos(n);
+            bool done = run.Visited.Contains(n.Id) && run.Cur != n.Id;
+            bool now = run.Cur == n.Id;
+            float s = now || canGo ? 130 : 114; // 모바일 터치 타겟 확대 (크리틱 반영)
+            var frame = UiKit.FramedPanel("node" + n.Id, screen, p, new Vector2(s, s), center: true);
+            frame.raycastTarget = canGo;
+            if (now) frame.color = new Color(1.25f, 1.2f, 0.85f);
+            else if (canGo) frame.color = new Color(1.45f, 1.3f, 0.75f); // 갈 수 있는 방 — 확실한 금빛
+            else if (done) frame.color = new Color(0.35f, 0.4f, 0.35f);
+            else frame.color = new Color(0.38f, 0.36f, 0.48f);           // 잠긴 방 — 뚜렷하게 어둡게
+
+            if (canGo)
+            {
+                var btn = frame.gameObject.AddComponent<Button>();
+                btn.transition = Selectable.Transition.None;
+                int id = n.Id;
+                btn.onClick.AddListener(() => { AudioKit.Click(); EnterNode(id); });
+                // 틴트만으론 어두운 배경에서 안 보인다 — 금색 아웃라인으로 확실하게
+                var glow = frame.gameObject.AddComponent<Outline>();
+                glow.effectColor = new Color(1f, 0.84f, 0.37f, 0.9f);
+                glow.effectDistance = new Vector2(5, 5);
+            }
+
+            float iconAlpha = done ? 0.3f : canGo || now ? 1f : 0.55f;
+            Sprite[] frames = null;
+            foreach (var key in NodeSheets(n.Type))
+                if ((frames = UiKit.LoadSheet(key)) != null) break;
             if (frames != null)
             {
-                var icon = UiKit.Panel("ni" + i, screen, p + new Vector2(0, 4), new Vector2(s - 52, s - 52), Color.white, center: true);
+                var icon = UiKit.Panel("ni" + n.Id, screen, p + new Vector2(0, 10), new Vector2(s - 48, s - 54), Color.white, center: true);
                 icon.sprite = frames[0]; icon.preserveAspect = true; icon.raycastTarget = false;
-                if (done) icon.color = new Color(1, 1, 1, 0.35f);
+                icon.color = new Color(1, 1, 1, iconAlpha);
             }
             else
-                UiKit.Label("nq" + i, screen, p, new Vector2(90, 90), "?", 56, done ? UiKit.Hex("6a6288") : UiKit.Hex("ffd75e"), bold: true, center: true);
+                UiKit.Label("nq" + n.Id, screen, p + new Vector2(0, 10), new Vector2(80, 60), NodeGlyph(n.Type), 44,
+                    new Color(1f, 0.84f, 0.37f, iconAlpha), bold: true, center: true);
+
+            UiKit.Label("nl" + n.Id, screen, p + new Vector2(0, -s / 2 + 18), new Vector2(s + 40, 24),
+                RunData.NodeTitle(n.Type), 19,
+                done ? UiKit.Hex("6a6288") : canGo || now ? Color.white : UiKit.Hex("9a92b8"), center: true);
 
             if (done)
-                UiKit.Label("nd" + i, screen, p, new Vector2(90, 90), "✓", 60, UiKit.Hex("8fd4a8"), bold: true, center: true);
-            // 현재 노드 강조는 확대+금색 틴트+굵은 라벨로 충분 — ▼ 마커는 위 노드를 침범해 제거 (전수검사)
+                UiKit.Label("nd" + n.Id, screen, p + new Vector2(0, 10), new Vector2(90, 90), "✓", 52, UiKit.Hex("8fd4a8"), bold: true, center: true);
 
-            // 라벨은 좌우 번갈아 바깥쪽에
-            float lx = p.x <= -100 ? p.x + s / 2 + 165 : p.x - s / 2 - 165;
-            var anchor = p.x <= -100 ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight;
-            UiKit.Label("nl" + i, screen, new Vector2(lx, p.y), new Vector2(300, 60),
-                RunData.NodeTitle(i), 24, done ? UiKit.Hex("6a6288") : now ? Color.white : UiKit.Hex("9a92b8"),
-                anchor, now, center: true);
+            // 현재 위치 — 탱커 말 배지 (내가 어디 있는지 즉시 보이게, 크리틱 반영)
+            if (now)
+            {
+                var tk = UiKit.LoadSheet("tank-idle");
+                if (tk != null)
+                {
+                    var marker = UiKit.Panel("nm" + n.Id, screen, p + new Vector2(-s / 2 + 6, s / 2 - 2), new Vector2(52, 58), Color.white, center: true);
+                    marker.sprite = tk[0]; marker.preserveAspect = true; marker.raycastTarget = false;
+                }
+            }
         }
 
-        public void EnterNode()
+        public void EnterNode(int id)
         {
-            switch (RunData.Nodes[run.Node])
+            run.Cur = id;
+            run.Visited.Add(id);
+            switch (run.Map[id].Type)
             {
                 case NodeType.Battle:
+                case NodeType.Elite:
                 case NodeType.Boss:
                     StartBattle(RunData.GetEncounter(run));
                     break;
                 case NodeType.Event: ShowEvent(); break;
-                case NodeType.Choice: ShowChoice(); break;
                 case NodeType.Rest: ShowRest(); break;
+                case NodeType.Shop: shop = RunData.MakeShop(); ShowShop(); break; // 상점마다 새 재고
+                case NodeType.Treasure: ShowTreasure(); break;
             }
         }
 
-        void Advance()
+        void Advance() => ShowMap();
+
+        // ---------- 보물 상자 (v0.6) ----------
+
+        public void ShowTreasure()
         {
-            run.Node++;
-            ShowMap();
+            int got = Balance.I.treasureGold;
+            run.Gold += got;
+            ShowCardRewardInner(Loc.T("treasure.h1"), Loc.F("treasure.desc", got));
         }
 
         // ---------- 전투 ----------
@@ -319,7 +360,7 @@ namespace Tanker
                     run.PartyHp[i] = mgr.Allies[i + 1].Hp;
                 run.BattleIndex++;
             }
-            bool wasBoss = RunData.Nodes[run.Node] == NodeType.Boss;
+            bool wasBoss = run.CurNode.Type == NodeType.Boss;
             Destroy(battleGo);
             battleGo = null;
             if (!won) ShowEnding(false);
@@ -329,17 +370,19 @@ namespace Tanker
 
         // ---------- 카드 보상 ----------
 
-        public void ShowCardReward()
+        public void ShowCardReward() => ShowCardRewardInner(Loc.T("reward.h1"), Loc.T("reward.desc"));
+
+        void ShowCardRewardInner(string h1, string desc)
         {
-            currentScreen = ShowCardReward;
+            currentScreen = () => ShowCardRewardInner(h1, desc);
             Clear();
             Background(0.6f);
             Gear();
-            Banner(Loc.T("reward.h1"), 640);
+            Banner(h1, 640);
             UiKit.Label("desc", screen, new Vector2(0, 530), new Vector2(920, 50),
-                Loc.T("reward.desc"), 30, UiKit.Hex("cfc8e8"), center: true);
+                desc, 30, UiKit.Hex("cfc8e8"), center: true);
 
-            var rng = new System.Random(run.Seed * 397 + run.Node * 71);
+            var rng = new System.Random(run.Seed * 397 + run.Cur * 71);
             var offered = new List<CardType>();
             var pool = new List<CardType>(Cards.Pool);
             for (int i = 0; i < 3 && pool.Count > 0; i++)
@@ -360,6 +403,7 @@ namespace Tanker
                         run.Deck.Add(card);
                         Advance();
                     }, 34, center: true);
+                if (UiKit.CardSprite != null) btn.GetComponent<Image>().sprite = UiKit.CardSprite;
                 var txt = btn.GetComponentInChildren<Text>();
                 txt.horizontalOverflow = HorizontalWrapMode.Wrap; // 긴 설명은 카드 안에서 줄바꿈
                 txt.rectTransform.sizeDelta = new Vector2(272, 420);
@@ -420,22 +464,7 @@ namespace Tanker
                 Loc.T("ev.hint"), 26, UiKit.Hex("8f86ad"), center: true);
         }
 
-        // ---------- 갈림길 / 휴식 / 상점 ----------
-
-        public void ShowChoice()
-        {
-            currentScreen = ShowChoice;
-            Clear();
-            Background(0.6f);
-            Gear();
-            Banner(Loc.T("ch.h1"), 620);
-            UiKit.Label("desc", screen, new Vector2(0, 490), new Vector2(920, 100),
-                Loc.T("ch.desc"), 32, UiKit.Hex("cfc8e8"), center: true);
-            Deco("fx-heal", new Vector2(-260, 260), new Vector2(190, 190));
-            Deco("dps-idle", new Vector2(260, 260), new Vector2(170, 190));
-            UiKit.Btn("rest", screen, new Vector2(0, 60), new Vector2(720, 130), Loc.F("ch.rest", (int)(Balance.I.restRatio * 100)), () => ShowRest(), 36, center: true);
-            UiKit.Btn("shop", screen, new Vector2(0, -110), new Vector2(720, 130), Loc.T("ch.shop"), () => ShowShop(), 36, center: true);
-        }
+        // ---------- 휴식 / 상점 ----------
 
         public void ShowRest()
         {
@@ -542,7 +571,7 @@ namespace Tanker
             var statsP = UiKit.FramedPanel("statsP", screen, new Vector2(0, -180), new Vector2(940, 420), center: true);
             statsP.raycastTarget = false;
             UiKit.Label("stats", screen, new Vector2(0, -170), new Vector2(860, 380),
-                Loc.F("end.stats", run.Node + 1, RunData.Nodes.Length, run.BattlesWon,
+                Loc.F("end.stats", run.FloorReached, Balance.I.mapFloors, run.BattlesWon,
                       run.TotalRedirected, run.TotalMitigated, run.Gold)
                 + "\n<size=24>" + Loc.F("end.seed", run.Seed) + "</size>", 34, Color.white, center: true);
 

@@ -47,12 +47,17 @@ namespace Tanker
             ["enc.backline"] = new[] { "백라인 사냥", "Backline Hunt" },
             ["enc.twin"] = new[] { "쌍둥이 브루트", "Twin Brutes" },
             ["enc.warlord"] = new[] { "오거 워로드", "Ogre Warlord" },
-            ["node.battle"] = new[] { "전투 — {0}", "Battle — {0}" },
-            ["node.event"] = new[] { "이벤트 — 가시 함정 복도", "Event — Spike Trap Corridor" },
-            ["node.choice"] = new[] { "갈림길 — 휴식 또는 상점", "Fork — Rest or Shop" },
-            ["node.elite"] = new[] { "엘리트 — 강화 조우", "Elite — Hardened Foes" },
-            ["node.rest"] = new[] { "휴식 — 모닥불", "Rest — Campfire" },
-            ["node.boss"] = new[] { "보스 — {0}", "Boss — {0}" },
+            // 분기 맵 방 타입 (v0.6)
+            ["nodeT.Battle"] = new[] { "전투", "Battle" },
+            ["nodeT.Elite"] = new[] { "엘리트", "Elite" },
+            ["nodeT.Event"] = new[] { "함정", "Trap" },
+            ["nodeT.Rest"] = new[] { "휴식", "Rest" },
+            ["nodeT.Shop"] = new[] { "상점", "Shop" },
+            ["nodeT.Treasure"] = new[] { "보물", "Loot" },
+            ["nodeT.Boss"] = new[] { "보스", "Boss" },
+            ["map.pick"] = new[] { "다음 방을 골라라 — 연결된 길로만 갈 수 있다", "Pick your next room — follow the paths" },
+            ["treasure.h1"] = new[] { "보물 상자", "Treasure" },
+            ["treasure.desc"] = new[] { "{0}G를 손에 넣었다. 카드도 한 장 챙겨 가라.", "You found {0}G. Take a card as well." },
 
             // 타이틀
             ["title.name"] = new[] { "탱 커", "T A N K E R" },
@@ -115,7 +120,7 @@ namespace Tanker
             ["end.lose.h1"] = new[] { "원정 실패", "Expedition Failed" },
             ["end.win.desc"] = new[] { "아무도 죽지 않았다.\n그것이 탱커의 승리다.", "No one died.\nThat is a tanker's victory." },
             ["end.lose.desc"] = new[] { "지키지 못한 원정은 여기서 끝났다.", "The expedition I failed to protect ends here." },
-            ["end.stats"] = new[] { "도달: {0}/{1} 노드\n전투 승리: {2}\n대신 맞은 피해: {3}\n경감한 피해: {4}\n남은 골드: {5}G", "Reached: node {0}/{1}\nBattles won: {2}\nDamage intercepted: {3}\nDamage reduced: {4}\nGold left: {5}G" },
+            ["end.stats"] = new[] { "도달: {0}/{1} 층\n전투 승리: {2}\n대신 맞은 피해: {3}\n경감한 피해: {4}\n남은 골드: {5}G", "Reached: floor {0}/{1}\nBattles won: {2}\nDamage intercepted: {3}\nDamage reduced: {4}\nGold left: {5}G" },
             ["end.title"] = new[] { "타이틀로", "To Title" },
 
             // 전투 UI
@@ -255,6 +260,25 @@ namespace Tanker
             ["log.necroIdle"] = new[] { "{0}이(가) 주문을 고른다", "{0} ponders a spell" },
             ["intent.heal"] = new[] { "회복 ▶ {0}", "Heal ▶ {0}" },
             ["intent.aoeMore"] = new[] { " 외 {0}", " +{0} more" },
+
+            // v0.6 — 전투 하단 UI 개편
+            ["bt.draw"] = new[] { "뽑을 {0}", "Draw {0}" },
+            ["bt.discard"] = new[] { "버림 {0}", "Discard {0}" },
+            ["bt.drawL"] = new[] { "뽑을 더미", "Draw pile" },
+            ["bt.discardL"] = new[] { "버림 더미", "Discard" },
+            ["bt.deckView"] = new[] { "내 덱 {0}", "Deck {0}" },
+            ["bt.plan"] = new[] { "예약: {0} — 진행하면 발동", "Planned: {0} — resolves on Go" },
+            ["bt.planTarget"] = new[] { "예약: {0} ▶ {1} — 진행하면 발동", "Planned: {0} ▶ {1} — resolves on Go" },
+            ["bt.pickTarget"] = new[] { "{0} — 빛나는 대상을 탭하라", "{0} — tap a glowing target" },
+            ["deck.title"] = new[] { "내 덱 — {0}장", "My Deck — {0} cards" },
+            ["deck.sub"] = new[] { "손 {0} · 뽑을 더미 {1} · 버림 더미 {2}", "Hand {0} · Draw {1} · Discard {2}" },
+            ["badge.enemy"] = new[] { "◆ 적 대상", "◆ Enemy" },
+            ["badge.ally"] = new[] { "◆ 아군 대상", "◆ Ally" },
+            ["badge.self"] = new[] { "◆ 즉시/자신", "◆ Instant/Self" },
+            ["st.frenzy"] = new[] { "격노 ×2", "Frenzy ×2" },
+            ["st.thorns"] = new[] { "가시 반사 {0}", "Thorns {0}" },
+            ["st.lifesteal"] = new[] { "흡혈", "Lifesteal" },
+            ["st.enemyHealer"] = new[] { "치유사", "Mender" },
 
             // ---- v0.4: 전투 UI/로그 ----
             ["bt.deck"] = new[] { "핸드 {0} · 덱 {1}", "Hand {0} · Deck {1}" },

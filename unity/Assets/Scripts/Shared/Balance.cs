@@ -83,6 +83,20 @@ namespace Tanker
         public int ironWillCap = 3;
         public int respiteHeal = 4;
 
+        // v0.6 — 분기 맵 (StS식)
+        public int mapFloors = 8;
+        public int mapElites = 2;
+        public int mapShops = 2;
+        public int mapTreasures = 1;
+        public int mapRests = 1;          // 중간 휴식 (보스 전 휴식은 별도 고정)
+        public int mapEvents = 2;
+        public int eliteMinFloor = 3;
+        public int eliteBudgetBonus = 3;
+        public int treasureGold = 25;
+
+        // v0.6 — 전투 핸드
+        public int handSize = 4;
+
         public int guardPrice = 40;
         public int guardValue = 2;
         public int coverPrice = 50;

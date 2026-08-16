@@ -8,12 +8,13 @@ namespace Tanker
     public static class UiKit
     {
         static Font font;
-        static Sprite panelSprite, buttonSprite;
+        static Sprite panelSprite, buttonSprite, cardSprite;
         static bool loaded;
 
         public static Font Font { get { EnsureLoaded(); return font; } }
         public static Sprite PanelSprite { get { EnsureLoaded(); return panelSprite; } }
         public static Sprite ButtonSprite { get { EnsureLoaded(); return buttonSprite; } }
+        public static Sprite CardSprite { get { EnsureLoaded(); return cardSprite; } }
 
         public static Color PanelColor = Hex("241d33");
         public static Color ButtonColor = Hex("3a3153");
@@ -28,13 +29,14 @@ namespace Tanker
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             panelSprite = LoadNineSlice("Art/ui-panel");
             buttonSprite = LoadNineSlice("Art/ui-button");
+            cardSprite = LoadNineSlice("Art/ui-card", borderRatio: 0.16f); // 카드 프레임 — 테두리 얇음
         }
 
-        static Sprite LoadNineSlice(string path)
+        static Sprite LoadNineSlice(string path, float borderRatio = 0.28f)
         {
             var tex = Resources.Load<Texture2D>(path);
             if (tex == null) return null;
-            float b = tex.width * 0.28f; // 프레임 테두리 두께 비율 — 생성 에셋의 테두리가 얇으면 조정
+            float b = Mathf.Min(tex.width, tex.height) * borderRatio; // 프레임 테두리 두께 비율
             return Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f),
                                  64f, 0, SpriteMeshType.FullRect, new Vector4(b, b, b, b));
         }

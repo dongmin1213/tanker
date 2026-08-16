@@ -2,7 +2,16 @@ using System.Collections.Generic;
 
 namespace Tanker
 {
-    public enum NodeType { Battle, Event, Choice, Rest, Boss }
+    public enum NodeType { Battle, Elite, Event, Rest, Shop, Treasure, Boss }
+
+    /// 분기 맵의 방 하나 — Next는 다음 층에서 이동 가능한 방 Id (StS식 DAG)
+    public class MapNode
+    {
+        public int Id, Floor;
+        public float X;             // 맵 화면 가로 슬롯 좌표
+        public NodeType Type;
+        public readonly List<int> Next = new();
+    }
 
     public enum ClassId { Warrior, Rogue, Mage, Ranger, Assassin, Beastkin, Cleric, Paladin, Berserker, Bard }
 
@@ -16,9 +25,11 @@ namespace Tanker
     public class RunState
     {
         public int Seed;
-        public int Node;
+        public int Cur = -1;                  // 현재 방 Id (-1 = 아직 입장 전 — 1층에서 고른다)
         public int Gold;
         public int TankHp;
+        public List<MapNode> Map;             // 시드 생성 분기 맵
+        public readonly HashSet<int> Visited = new();
         public List<ClassId> Party = new();   // 동료 (탱커 제외)
         public List<int> PartyHp = new();
         public List<CardType> Deck = new();
@@ -29,6 +40,18 @@ namespace Tanker
         public int BattleIndex;               // 전투 순번 (스케일링 스테이지)
 
         public static int TankMax => Balance.I.tankHp;
+
+        public MapNode CurNode => Cur >= 0 ? Map[Cur] : null;
+        public int FloorReached => Cur >= 0 ? Map[Cur].Floor + 1 : 0;
+
+        /// 지금 이동 가능한 방 Id들 — 입장 전엔 1층 전체, 이후엔 현재 방의 연결선
+        public List<int> Reachable()
+        {
+            var r = new List<int>();
+            if (Cur < 0) { foreach (var n in Map) if (n.Floor == 0) r.Add(n.Id); }
+            else r.AddRange(Map[Cur].Next);
+            return r;
+        }
 
         public RunState(int seed)
         {
@@ -46,6 +69,7 @@ namespace Tanker
                 PartyHp.Add(RunData.Class(pick).Hp);
             }
             Deck = Cards.StarterDeck();
+            Map = RunData.GenerateMap(rng);
         }
 
         public void RestAll(float ratio)
@@ -88,14 +112,73 @@ namespace Tanker
         public bool Bought;
     }
 
-    /// 런 콘텐츠 — 클래스/적 풀, 시드 기반 인카운터 생성, 스테이지 스케일링. 수치는 Balance, 문자열은 Loc.
+    /// 런 콘텐츠 — 분기 맵 생성, 클래스/적 풀, 시드 기반 인카운터, 스테이지 스케일링. 수치는 Balance, 문자열은 Loc.
     public static class RunData
     {
-        public static readonly NodeType[] Nodes =
+        /// StS식 분기 맵 생성 — 1층 전투 시작, 마지막 전 층 휴식 보장, 최상층 보스.
+        /// 층간 연결은 비례 구간 매핑이라 교차 없이 전 노드가 시작~보스에 연결된다.
+        public static List<MapNode> GenerateMap(System.Random rng)
         {
-            NodeType.Battle, NodeType.Event, NodeType.Battle, NodeType.Choice,
-            NodeType.Battle, NodeType.Rest, NodeType.Boss,
-        };
+            var b = Balance.I;
+            int floors = b.mapFloors;
+            var map = new List<MapNode>();
+            var byFloor = new List<MapNode>[floors];
+
+            for (int f = 0; f < floors; f++)
+            {
+                int count = f == 0 || f >= floors - 2 ? 1 : 2 + rng.Next(2); // 시작·휴식·보스층은 1개, 중간은 2~3개
+                byFloor[f] = new List<MapNode>();
+                for (int i = 0; i < count; i++)
+                {
+                    float x = count == 1 ? 0 : count == 2 ? -140 + i * 280 : -230 + i * 230;
+                    var node = new MapNode { Id = map.Count, Floor = f, X = x, Type = NodeType.Battle };
+                    map.Add(node);
+                    byFloor[f].Add(node);
+                }
+            }
+
+            // 연결 — 비례 구간 매핑 (교차 없음, 양방향 커버 보장)
+            for (int f = 0; f + 1 < floors; f++)
+            {
+                int na = byFloor[f].Count, nb = byFloor[f + 1].Count;
+                for (int a = 0; a < na; a++)
+                {
+                    int lo = a * nb / na, hi = ((a + 1) * nb - 1) / na;
+                    for (int t = lo; t <= hi; t++) byFloor[f][a].Next.Add(byFloor[f + 1][t].Id);
+                }
+            }
+
+            // 타입 배치 — 고정: 마지막 전 층 휴식, 최상층 보스. 중간 층 노드에 특수 방 배분, 나머지는 전투.
+            byFloor[floors - 2][0].Type = NodeType.Rest;
+            byFloor[floors - 1][0].Type = NodeType.Boss;
+            var mid = new List<MapNode>();
+            for (int f = 1; f < floors - 2; f++) mid.AddRange(byFloor[f]);
+
+            void Assign(NodeType type, int count, int minFloor)
+            {
+                for (int c = 0; c < count; c++)
+                {
+                    for (int guard = 0; guard < 60; guard++)
+                    {
+                        var n = mid[rng.Next(mid.Count)];
+                        if (n.Type != NodeType.Battle || n.Floor < minFloor) continue;
+                        // 같은 층에 같은 특수 방 중복 금지
+                        bool dup = false;
+                        foreach (var o in byFloor[n.Floor]) if (o != n && o.Type == type) dup = true;
+                        if (dup) continue;
+                        n.Type = type;
+                        break;
+                    }
+                }
+            }
+
+            Assign(NodeType.Elite, b.mapElites, b.eliteMinFloor);
+            Assign(NodeType.Shop, b.mapShops, 1);
+            Assign(NodeType.Treasure, b.mapTreasures, 1);
+            Assign(NodeType.Rest, b.mapRests, 2);
+            Assign(NodeType.Event, b.mapEvents, 1);
+            return map;
+        }
 
         public static ClassDef Class(ClassId id)
         {
@@ -115,18 +198,7 @@ namespace Tanker
             }
         }
 
-        public static string NodeTitle(int i)
-        {
-            switch (i)
-            {
-                case 0: case 2: return Loc.T("node.battleRandom");
-                case 1: return Loc.T("node.event");
-                case 3: return Loc.T("node.choice");
-                case 4: return Loc.T("node.elite");
-                case 5: return Loc.T("node.rest");
-                default: return Loc.F("node.boss", Loc.T("enc.warlord"));
-            }
-        }
+        public static string NodeTitle(NodeType t) => Loc.T("nodeT." + t);
 
         // 적 풀: (락키, 시트, hp, power, ai, cost, aoe)
         class EnemyPick
@@ -161,14 +233,15 @@ namespace Tanker
         static int ScaledPower(int power, int stage) =>
             power <= 0 ? power : power + stage / Balance.I.scalePowerStages;
 
-        /// 시드·스테이지 기반 인카운터 생성 (보스 노드는 고정 구성 + 스케일링)
+        /// 시드·스테이지 기반 인카운터 생성 (보스 방은 고정 구성 + 스케일링, 엘리트는 예산 보너스)
         public static EncounterDef GetEncounter(RunState run)
         {
             var b = Balance.I;
             int stage = run.BattleIndex;
-            var rng = new System.Random(run.Seed * 977 + run.Node * 131);
+            bool elite = run.CurNode.Type == NodeType.Elite;
+            var rng = new System.Random(run.Seed * 977 + run.Cur * 131);
 
-            if (Nodes[run.Node] == NodeType.Boss)
+            if (run.CurNode.Type == NodeType.Boss)
             {
                 return new EncounterDef
                 {
@@ -186,7 +259,8 @@ namespace Tanker
 
             int attackers = 0;
             foreach (var id in run.Party) if (!Class(id).IsHealer) attackers++;
-            int budget = b.encounterBudgetBase + stage * b.encounterBudgetPerStage + (attackers - 2);
+            int budget = b.encounterBudgetBase + stage * b.encounterBudgetPerStage + (attackers - 2)
+                       + (elite ? b.eliteBudgetBonus : 0);
 
             var pool = EnemyPool();
             var picked = new List<EnemyPick>();
@@ -212,8 +286,8 @@ namespace Tanker
             }
             return new EncounterDef
             {
-                TitleKey = Nodes[run.Node] == NodeType.Battle && run.Node == 4 ? "enc.elite" : "enc.random",
-                Gold = run.Node == 4 ? b.eliteGold : b.battleGold,
+                TitleKey = elite ? "enc.elite" : "enc.random",
+                Gold = elite ? b.eliteGold : b.battleGold,
                 Units = units,
             };
         }

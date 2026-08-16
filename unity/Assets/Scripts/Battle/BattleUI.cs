@@ -19,9 +19,24 @@ namespace Tanker
         readonly Dictionary<Unit, int> previewCache = new();
         int previewVersion = -1;
         readonly Dictionary<Unit, Vector2> posOf = new();
-        Text turnText, savedText, logText, deckText;
-        readonly Button[] cardBtns = new Button[3];
-        readonly Text[] cardTexts = new Text[3];
+        Text turnText, savedText, logText, drawText, discardText, deckViewText, planText;
+
+        /// 더미 배지 — 미니 카드 프레임(카드백 에셋 우선) + 중앙 숫자, 탭하면 덱 열람
+        Text MakePileBadge(string name, Vector2 pos, System.Action onTap)
+        {
+            var img = Panel(name, root, pos, new Vector2(58, 82), Color.white);
+            var back = Resources.Load<Texture2D>("Art/card-back");
+            if (back != null)
+                img.sprite = Sprite.Create(back, new Rect(0, 0, back.width, back.height), new Vector2(0.5f, 0.5f), 100f);
+            else if (UiKit.CardSprite != null) { img.sprite = UiKit.CardSprite; img.type = Image.Type.Sliced; }
+            else img.color = Hex("241d33");
+            var btn = img.gameObject.AddComponent<Button>();
+            btn.transition = Selectable.Transition.None;
+            btn.onClick.AddListener(() => { AudioKit.Click(); onTap(); });
+            return Label(name + "N", img.rectTransform, Vector2.zero, new Vector2(58, 82), "", 30, Color.white, center: true);
+        }
+        readonly Button[] cardBtns = new Button[4];
+        readonly Text[] cardTexts = new Text[4];
         Button goBtn;
         GameObject resultPanel;
         Text resultText, resultBtnText;
@@ -166,7 +181,22 @@ namespace Tanker
             turnText = Label("turn", root, new Vector2(540, 1850), new Vector2(1000, 50), "", 40, Color.white, bold: true);
             savedText = Label("saved", root, new Vector2(540, 1790), new Vector2(1000, 40), "", 30, Hex("ffd75e"));
             logText = Label("log", root, new Vector2(540, 770), new Vector2(1020, 60), "", 34, Hex("cfc8e8"));
-            deckText = Label("deck", root, new Vector2(540, 705), new Vector2(1000, 36), "", 24, Hex("8f86ad"));
+            // 하단 패널 헤더 — 좌: 내 덱 열람 버튼. 좌하/우하: 뽑을·버림 더미(미니 카드 + 숫자, 탭=덱 열람)
+            var flowRef = Object.FindFirstObjectByType<GameFlow>();
+            System.Action openDeck = () =>
+            {
+                if (flowRef != null) DeckViewUI.Open(flowRef.run.Deck, mgr.Hand.Count, mgr.DrawCount, mgr.DiscardCount);
+            };
+            var deckBtn = UiKit.Btn("deckView", root, new Vector2(128, 700), new Vector2(196, 52), "", () => openDeck(), 24);
+            deckViewText = deckBtn.GetComponentInChildren<Text>();
+            if (flowRef != null) deckViewText.text = Loc.F("bt.deckView", flowRef.run.Deck.Count);
+            drawText = MakePileBadge("drawPile", new Vector2(62, 62), openDeck);
+            discardText = MakePileBadge("discardPile", new Vector2(1018, 62), openDeck);
+            Label("drawL", root, new Vector2(62, 12), new Vector2(140, 26), Loc.T("bt.drawL"), 18, Hex("8f86ad"));
+            Label("discardL", root, new Vector2(1018, 12), new Vector2(140, 26), Loc.T("bt.discardL"), 18, Hex("8f86ad"));
+
+            // 예약 상태 요약 — 무엇을 골랐고 누구에게 가는지 (온보딩 크리틱 반영)
+            planText = Label("plan", root, new Vector2(540, 250), new Vector2(900, 40), "", 26, Hex("ffd75e"));
 
             // 아군 슬롯 — 탱커 고정 + 동료 최대 4
             posOf[mgr.Tank] = new Vector2(400, 1120);
@@ -211,15 +241,18 @@ namespace Tanker
             foreach (var a in mgr.Allies) MakeUnitView(a);
             foreach (var e in mgr.Enemies) MakeUnitView(e);
 
-            // 핸드 카드 3장(세로 대형 — 모바일 탭 타겟) + 전폭 진행 바
-            for (int i = 0; i < 3; i++)
+            // 핸드 카드 4장(세로 대형 — 모바일 탭 타겟) + 전폭 진행 바
+            for (int i = 0; i < cardBtns.Length; i++)
             {
                 int idx = i;
-                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(190 + i * 350, 480), new Vector2(300, 400), "", () => mgr.PressCard(idx), 34);
+                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(147 + i * 262, 468), new Vector2(240, 360), "", () => mgr.PressCard(idx), 30);
+                if (UiKit.CardSprite != null) cardBtns[i].GetComponent<Image>().sprite = UiKit.CardSprite; // 카드 전용 프레임
                 cardTexts[i] = cardBtns[i].GetComponentInChildren<Text>();
+                cardTexts[i].horizontalOverflow = HorizontalWrapMode.Wrap;
+                cardTexts[i].rectTransform.sizeDelta = new Vector2(212, 340);
             }
             goBtn = UiKit.Btn("go", root, new Vector2(540, 155), new Vector2(980, 130), Loc.T("skill.go"), () => mgr.EndTurn(), 42);
-            Label("hintGo", root, new Vector2(540, 45), new Vector2(1000, 40), Loc.T("hint.cards"), 22, Hex("8f86ad"));
+            Label("hintGo", root, new Vector2(540, 45), new Vector2(620, 40), Loc.T("hint.cards"), 20, Hex("8f86ad"));
 
             var flow = Object.FindFirstObjectByType<GameFlow>();
             SettingsUI.AttachGear(root, null, flow != null ? (System.Action)flow.AbortBattleToTitle : null);
@@ -300,7 +333,6 @@ namespace Tanker
                 turnText.text = Loc.F("bt.header", mgr.Turn, mgr.EncounterTitle);
                 savedText.text = Loc.F("bt.score", mgr.RedirectedSaved, mgr.MitigatedSaved);
                 logText.text = mgr.Log;
-                deckText.text = Loc.F("bt.deck", mgr.Hand.Count, mgr.TotalDeckInfo());
                 RefreshCards();
                 foreach (var v in views.Values) RefreshUnitText(v);
                 foreach (var e in mgr.Enemies) RefreshIntent(e);
@@ -329,20 +361,42 @@ namespace Tanker
             }
         }
 
+        static string BadgeOf(CardType card) => Cards.TargetOf(card) switch
+        {
+            CardTarget.Enemy => "<color=#ff8a7a>" + Loc.T("badge.enemy") + "</color>",
+            CardTarget.Ally => "<color=#7ab0ff>" + Loc.T("badge.ally") + "</color>",
+            _ => "<color=#ffd75e>" + Loc.T("badge.self") + "</color>",
+        };
+
         void RefreshCards()
         {
             bool player = mgr.Phase == Phase.Player;
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < cardBtns.Length; i++)
             {
                 bool has = i < mgr.Hand.Count;
                 cardBtns[i].gameObject.SetActive(has);
                 if (!has) continue;
                 var card = mgr.Hand[i];
-                cardTexts[i].text = Cards.NameOf(card) + "\n\n<size=26>" + Loc.T("card." + card + ".s") + "</size>";
+                cardTexts[i].text = Cards.NameOf(card)
+                    + "\n<size=19>" + BadgeOf(card) + "</size>"
+                    + "\n\n<size=23>" + Loc.T("card." + card + ".s") + "</size>";
                 cardBtns[i].interactable = player && mgr.CardPlayable(i);
                 UiKit.SetSelected(cardBtns[i], mgr.PendingCard == i || mgr.PlannedCard == i);
             }
             goBtn.interactable = player && mgr.PendingCard < 0;
+            drawText.text = mgr.DrawCount.ToString();
+            discardText.text = mgr.DiscardCount.ToString();
+
+            // 예약 상태 요약
+            if (mgr.PendingCard >= 0)
+            { planText.text = Loc.F("bt.pickTarget", Cards.NameOf(mgr.Hand[mgr.PendingCard])); planText.color = Hex("ff8a7a"); }
+            else if (mgr.PlannedCard >= 0 && mgr.PlannedCard < mgr.Hand.Count)
+            {
+                var pc = Cards.NameOf(mgr.Hand[mgr.PlannedCard]);
+                planText.text = mgr.PlannedTarget != null ? Loc.F("bt.planTarget", pc, mgr.PlannedTarget.Name) : Loc.F("bt.plan", pc);
+                planText.color = Hex("ffd75e");
+            }
+            else planText.text = "";
         }
 
         void RefreshUnitText(UnitView v)
@@ -361,6 +415,11 @@ namespace Tanker
             else if (u.IsTank && mgr.Bracing) v.Status.text = Loc.T("st.bracing");
             else if (u.Shaken) v.Status.text = Loc.T("st.shaken");
             else if (mgr.CoverTarget == u) v.Status.text = Loc.T("st.covered");
+            // 고유 매커니즘은 상시 노출 — 첫 만남에 설명 없는 능력은 불친절 (유료 완성도)
+            else if (u.Trait == Trait.Frenzy && u.Alive && u.Hp * 2 <= u.MaxHp) v.Status.text = Loc.T("st.frenzy");
+            else if (u.Thorns > 0) v.Status.text = Loc.F("st.thorns", u.Thorns);
+            else if (u.Lifesteal) v.Status.text = Loc.T("st.lifesteal");
+            else if (u.Ai == AiKind.EnemyHealer) v.Status.text = Loc.T("st.enemyHealer");
             else v.Status.text = "";
 
             if (v.Incoming != null)

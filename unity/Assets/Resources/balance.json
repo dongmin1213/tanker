@@ -81,5 +81,15 @@
   "necroHp": 12,
   "necroHeal": 3,
   "ironWillCap": 3,
-  "respiteHeal": 4
+  "respiteHeal": 4,
+  "mapFloors": 8,
+  "mapElites": 2,
+  "mapShops": 2,
+  "mapTreasures": 1,
+  "mapRests": 1,
+  "mapEvents": 2,
+  "eliteMinFloor": 3,
+  "eliteBudgetBonus": 3,
+  "treasureGold": 25,
+  "handSize": 4
 }

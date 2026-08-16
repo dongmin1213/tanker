@@ -95,7 +95,7 @@ namespace Tanker
             RedirectedSaved = 0; MitigatedSaved = 0;
 
             // 덱 — 시드 결정 셔플
-            cardRng = new System.Random(run.Seed * 131 + run.Node * 17);
+            cardRng = new System.Random(run.Seed * 131 + run.Cur * 17);
             drawPile.Clear(); discardPile.Clear(); Hand.Clear();
             drawPile.AddRange(run.Deck);
             ShufflePile(drawPile);
@@ -115,11 +115,12 @@ namespace Tanker
             }
         }
 
-        public string TotalDeckInfo() => drawPile.Count + "+" + discardPile.Count;
+        public int DrawCount => drawPile.Count;
+        public int DiscardCount => discardPile.Count;
 
         void DrawHand()
         {
-            while (Hand.Count < 3)
+            while (Hand.Count < Balance.I.handSize)
             {
                 if (drawPile.Count == 0)
                 {
