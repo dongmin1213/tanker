@@ -39,7 +39,8 @@ namespace Tanker
         readonly Text[] cardTexts = new Text[4];
         Button goBtn;
         GameObject resultPanel;
-        Text resultText, resultBtnText;
+        Text resultText, resultSubText, resultStatsText, resultBtnText;
+        Image resultHero;
         static Sprite sharedGlow;
         Sprite glowSprite;
         Sprite[] fxHit, fxHeal;
@@ -257,10 +258,16 @@ namespace Tanker
             var flow = Object.FindFirstObjectByType<GameFlow>();
             SettingsUI.AttachGear(root, null, flow != null ? (System.Action)flow.AbortBattleToTitle : null);
 
-            resultPanel = Panel("result", root, new Vector2(540, 960), new Vector2(1080, 1920), new Color(0, 0, 0, 0.72f)).gameObject;
+            // 결과 오버레이 — 긴 화면(19.5:9)까지 덮는 딤 + 중앙 결과 카드 (뒤 화면 비침 방지)
+            resultPanel = Panel("result", root, new Vector2(540, 960), new Vector2(1500, 2600), new Color(0, 0, 0, 0.88f)).gameObject;
             var resultRt = resultPanel.GetComponent<RectTransform>();
-            resultText = Label("resultTxt", resultRt, new Vector2(0, 60), new Vector2(900, 200), "", 60, Color.white, bold: true, center: true);
-            var contBtn = UiKit.Btn("continue", resultRt, new Vector2(0, -140), new Vector2(420, 120), "", () => mgr.PressContinue(), center: true);
+            UiKit.FramedPanel("resultCard", resultRt, new Vector2(0, 60), new Vector2(800, 760), center: true).raycastTarget = false;
+            resultText = Label("resultTxt", resultRt, new Vector2(0, 330), new Vector2(720, 90), "", 68, Color.white, bold: true, center: true);
+            resultSubText = Label("resultSub", resultRt, new Vector2(0, 245), new Vector2(700, 50), "", 30, Hex("cfc8e8"), center: true);
+            resultHero = Panel("resultHero", resultRt, new Vector2(0, 70), new Vector2(240, 270), Color.clear, center: true);
+            resultHero.preserveAspect = true; resultHero.raycastTarget = false;
+            resultStatsText = Label("resultStats", resultRt, new Vector2(0, -145), new Vector2(700, 100), "", 28, Color.white, center: true);
+            var contBtn = UiKit.Btn("continue", resultRt, new Vector2(0, -420), new Vector2(460, 125), "", () => mgr.PressContinue(), center: true);
             resultBtnText = contBtn.GetComponentInChildren<Text>();
             resultPanel.SetActive(false);
         }
@@ -346,17 +353,19 @@ namespace Tanker
                 resultPanel.SetActive(over);
                 if (over)
                 {
-                    if (mgr.Phase == Phase.Won)
+                    bool won = mgr.Phase == Phase.Won;
+                    var tank = LoadSheet("tank-idle");
+                    if (tank != null)
                     {
-                        resultText.text = Loc.F("result.win", mgr.EncounterTitle, mgr.RedirectedSaved, mgr.MitigatedSaved)
-                            + (mgr.RewardGold > 0 ? "\n" + Loc.F("result.loot", mgr.RewardGold) : "");
-                        resultBtnText.text = Loc.T("result.continue");
+                        resultHero.sprite = tank[0];
+                        resultHero.color = won ? Color.white : new Color(0.4f, 0.36f, 0.45f);
                     }
-                    else
-                    {
-                        resultText.text = Loc.T("result.lose");
-                        resultBtnText.text = Loc.T("result.view");
-                    }
+                    resultText.text = Loc.T(won ? "result.winT" : "result.loseT");
+                    resultText.color = won ? Hex("ffd75e") : Hex("c96a6a");
+                    resultSubText.text = won ? Loc.F("result.winSub", mgr.EncounterTitle) : Loc.T("result.loseSub");
+                    resultStatsText.text = Loc.F("result.stats", mgr.RedirectedSaved, mgr.MitigatedSaved)
+                        + (won && mgr.RewardGold > 0 ? "\n<color=#ffd75e>" + Loc.F("result.loot", mgr.RewardGold) + "</color>" : "");
+                    resultBtnText.text = Loc.T(won ? "result.continue" : "result.view");
                 }
             }
         }

@@ -86,7 +86,7 @@ namespace Tanker
             CoverReduceAmt = run.CoverReduce;
             BraceHeal = b.braceHeal + run.BraceBonus;
             RewardGold = def.Gold;
-            EncounterTitle = Loc.T(def.TitleKey);
+            EncounterTitle = def.Title;
 
             Phase = Phase.Player; Turn = 1;
             PendingCard = -1; PlannedCard = -1; PlannedTarget = null;

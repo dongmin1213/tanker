@@ -99,7 +99,7 @@ namespace Tanker
 
     public class EncounterDef
     {
-        public string TitleKey;
+        public string Title;   // 적 구성에서 생성한 전투 이름 ("고블린 무리", "오크의 습격" 등)
         public int Gold;
         public UnitDef[] Units;
     }
@@ -227,6 +227,21 @@ namespace Tanker
             };
         }
 
+        /// 적 구성에서 전투 이름 생성 — "고블린 무리"(같은 종 다수) / "오크의 습격"(최고 코스트 대표) / 정예 접두
+        static string EncounterTitle(List<EnemyPick> picked, bool elite)
+        {
+            var lead = picked[0];
+            bool allSame = true;
+            foreach (var p in picked)
+            {
+                if (p.Cost > lead.Cost) lead = p;
+                if (p.Key != picked[0].Key) allSame = false;
+            }
+            if (elite) return Loc.F("enc.eliteAmbush", Loc.T(lead.Key));
+            if (allSame && picked.Count > 1) return Loc.F("enc.pack", Loc.T(picked[0].Key));
+            return Loc.F("enc.ambush", Loc.T(lead.Key));
+        }
+
         static int ScaledHp(int hp, int stage) =>
             (int)System.Math.Round(hp * (1f + Balance.I.scaleHpPct * stage));
 
@@ -245,7 +260,7 @@ namespace Tanker
             {
                 return new EncounterDef
                 {
-                    TitleKey = "enc.warlord",
+                    Title = Loc.T("enc.warlord"),
                     Gold = 0,
                     Units = new[]
                     {
@@ -286,7 +301,7 @@ namespace Tanker
             }
             return new EncounterDef
             {
-                TitleKey = elite ? "enc.elite" : "enc.random",
+                Title = EncounterTitle(picked, elite),
                 Gold = elite ? b.eliteGold : b.battleGold,
                 Units = units,
             };

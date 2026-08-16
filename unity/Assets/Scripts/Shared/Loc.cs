@@ -149,10 +149,13 @@ namespace Tanker
             ["intent.charge"] = new[] { "힘 모으는 중...", "Gathering power..." },
             ["intent.single"] = new[] { "▶ {0}에게 {1}", "▶ {1} to {0}" },
             ["intent.aoe"] = new[] { "▶ 휩쓸기: {0}", "▶ Sweep: {0}" },
-            ["result.win"] = new[] { "{0} 격파!\n대신 맞음 {1} · 경감 {2}", "{0} defeated!\nIntercepted {1} · Reduced {2}" },
+            ["result.winT"] = new[] { "승 리", "V I C T O R Y" },
+            ["result.winSub"] = new[] { "{0} 격파 — 아무도 잃지 않았다", "{0} cleared — no one was lost" },
+            ["result.loseT"] = new[] { "패 배", "D E F E A T" },
+            ["result.loseSub"] = new[] { "팀을 지키지 못했다...", "I couldn't protect them..." },
+            ["result.stats"] = new[] { "대신 맞은 피해 {0} · 경감한 피해 {1}", "Intercepted {0} · Reduced {1}" },
             ["result.loot"] = new[] { "전리품 +{0}G", "Loot +{0}G" },
             ["result.continue"] = new[] { "계속 ▶", "Continue ▶" },
-            ["result.lose"] = new[] { "팀을 지키지 못했다...", "I couldn't protect them..." },
             ["result.view"] = new[] { "결과 보기", "See the outcome" },
 
             // 전투 로그·팝업
@@ -208,7 +211,10 @@ namespace Tanker
             ["unit.golem"] = new[] { "가시 골렘", "Thorn Golem" },
             ["unit.bat"] = new[] { "흡혈 박쥐", "Vampire Bat" },
             ["unit.necro"] = new[] { "네크로맨서", "Necromancer" },
-            ["enc.random"] = new[] { "조우전", "Encounter" },
+            ["enc.random"] = new[] { "적 무리", "Enemy Band" }, // 폴백 — 실제 제목은 적 구성에서 생성
+            ["enc.pack"] = new[] { "{0} 무리", "{0} Pack" },
+            ["enc.ambush"] = new[] { "{0}의 습격", "{0} Ambush" },
+            ["enc.eliteAmbush"] = new[] { "정예 — {0}의 습격", "Elite {0} Ambush" },
             ["enc.elite"] = new[] { "정예 조우전", "Elite Encounter" },
             ["node.battleRandom"] = new[] { "전투 — 무작위 조우", "Battle — Random Encounter" },
 
