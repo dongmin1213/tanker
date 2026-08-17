@@ -159,5 +159,9 @@
   "lichHp": 60,
   "lichPower": 12,
   "lichAoePower": 4,
-  "lichEnrageHp": 30
+  "lichEnrageHp": 30,
+  "rowFrontBonus": 1,
+  "rowBackPenalty": 1,
+  "threatAuraBonus": 50,
+  "threatBombBonus": 120
 }

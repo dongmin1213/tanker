@@ -63,7 +63,7 @@ namespace Tanker
             ["title.name"] = new[] { "탱 커", "T A N K E R" },
             ["title.sub"] = new[] { "공격 스킬은 없다. 팀은 내가 지킨다.", "No attack skills. I protect the team." },
             ["title.start"] = new[] { "던전에 들어간다", "Enter the Dungeon" },
-            ["title.ver"] = new[] { "v0.8 — 심연의 왕", "v0.8 — King of the Abyss" },
+            ["title.ver"] = new[] { "v0.9 — 방패의 진형", "v0.9 — Shield Formation" },
             ["title.lang"] = new[] { "English", "한국어" },
 
             // 설정 오버레이
@@ -433,6 +433,11 @@ namespace Tanker
             ["title.help"] = new[] { "게임 방법", "How to Play" },
             ["party.desc2"] = new[] { "{1}개 클래스 중 무작위 {0}명과 출발한다 — 매 원정 구성이 달라진다", "You set out with {0} random companions of {1} classes — every run differs" },
             ["party.noHealer"] = new[] { "⚠ 이번 원정엔 힐러가 없다 — 버티기·숨 고르기·응급 처치가 생명줄이다", "⚠ No healer this run — Brace, Respite and First Aid are your lifeline" },
+            ["codex.melee"] = new[] { "근접", "Melee" },
+            ["codex.ranged"] = new[] { "원거리", "Ranged" },
+            ["party.front"] = new[] { "전열", "Front" },
+            ["party.back"] = new[] { "후열", "Back" },
+            ["party.rowHint"] = new[] { "배치: 근접은 전열 공격 +1·후열 -1 — 적 근접은 전열부터, 도약 적(거미·박쥐·늑대)은 배치 무시", "Formation: melee +1 atk in front, -1 in back — melee foes hit front first; leapers (spider/bat/wolf) ignore rows" },
 
             // v0.7 — 게임 방법 4페이지
             ["help.t0"] = new[] { "1. 나는 공격하지 않는다", "1. I don't attack" },

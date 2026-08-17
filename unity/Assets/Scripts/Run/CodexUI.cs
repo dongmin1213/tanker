@@ -93,7 +93,8 @@ namespace Tanker
         {
             var cd = RunData.Class(id);
             RowIcon(frame, cd.Sheet + "-idle", y);
-            string stat = cd.IsHealer ? Loc.F("codex.healStat", cd.Hp, cd.Power) : Loc.F("codex.atkStat", cd.Hp, cd.Power);
+            string stat = (cd.IsHealer ? Loc.F("codex.healStat", cd.Hp, cd.Power) : Loc.F("codex.atkStat", cd.Hp, cd.Power))
+                        + " · " + Loc.T(cd.Ranged ? "codex.ranged" : "codex.melee");
             string trait = cd.IsHealer ? Loc.T("codex.healerTrait")
                 : cd.Trait != Trait.None
                     ? (cd.Trait == Trait.TankHealOnHit ? Loc.F("trait." + cd.Trait, Balance.I.paladinTankHeal) : Loc.T("trait." + cd.Trait))

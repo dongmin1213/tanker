@@ -253,15 +253,25 @@ namespace Tanker
             // 예약 상태 요약 — 무엇을 골랐고 누구에게 가는지 (온보딩 크리틱 반영)
             planText = Label("plan", root, new Vector2(540, 176), new Vector2(900, 38), "", 25, Hex("ffd75e"));
 
-            // 아군 슬롯 — 탱커 고정 + 동료 최대 4
+            // 아군 슬롯 — 탱커 전열 고정 + 동료는 진형(전열=적 쪽, 후열=왼쪽 뒤)대로 배치 (v0.9)
             posOf[mgr.Tank] = new Vector2(400, 1120);
-            var allySlots = new[]
+            var frontSlots = new[]
             {
-                new Vector2(265, 1310), new Vector2(105, 1360),
-                new Vector2(290, 1530), new Vector2(120, 1600),
+                new Vector2(300, 1330), new Vector2(330, 1550),
+                new Vector2(250, 1170), new Vector2(360, 1710),
             };
-            for (int i = 1; i < mgr.Allies.Count && i - 1 < allySlots.Length; i++)
-                posOf[mgr.Allies[i]] = allySlots[i - 1];
+            var backSlots = new[]
+            {
+                new Vector2(110, 1290), new Vector2(95, 1520),
+                new Vector2(140, 1680), new Vector2(80, 1150),
+            };
+            int fi = 0, bi = 0;
+            for (int i = 1; i < mgr.Allies.Count; i++)
+            {
+                var rowSlots = mgr.Allies[i].Row == 0 ? frontSlots : backSlots;
+                int si = mgr.Allies[i].Row == 0 ? fi++ : bi++;
+                posOf[mgr.Allies[i]] = rowSlots[Mathf.Min(si, rowSlots.Length - 1)];
+            }
 
             // 적 슬롯 — 큰 놈이 앞
             // 패널 축소로 넓어진 필드 활용 — 적 간격 확대 (이름·인텐트 라벨 겹침 해소)

@@ -73,6 +73,9 @@ namespace Tanker
         public Unit LastTarget;  // 전사 전용: 직전 공격 대상
         public bool SelfShield;  // 해골 방패병: 매턴 방패 1회 리필 (v0.8)
         public bool Pack;        // 늑대: 살아있는 다른 늑대 수만큼 공격 + (v0.8)
+        public int Row;          // 아군 진형 — 0=전열 1=후열 (v0.9, 탱커는 항상 0)
+        public bool RangedClass; // 아군 원거리 클래스 — 진형 공격 보정 미적용
+        public bool Leap;        // 적 도약형(거미·박쥐·늑대) — 진형 무시하고 아무나 노린다
         public int BountyGold;   // 미믹: 처치 시 골드 드랍 (v0.8)
         public int DamageCap;    // 저주 갑옷: 받는 한 방 피해 상한 (0 = 없음) (v0.8)
 

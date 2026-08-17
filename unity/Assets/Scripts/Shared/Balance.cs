@@ -35,6 +35,12 @@ namespace Tanker
         public int battleGold = 40;
         public int eliteGold = 40;
         public float restRatio = 0.3f;
+
+        // v0.9 진형·AI
+        public int rowFrontBonus = 1;    // 근접 전열 공격 +
+        public int rowBackPenalty = 1;   // 근접 후열 공격 -
+        public int threatAuraBonus = 50; // 아군 킬각 우선순위: 지휘 오라
+        public int threatBombBonus = 120;// 아군 킬각 우선순위: 폭발 임박
         public int trapTankCost = 6;
         public int trapToll = 20;
         public int trapDpsCost = 4;

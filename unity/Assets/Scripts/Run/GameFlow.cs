@@ -151,6 +151,7 @@ namespace Tanker
             var loaded = RunSave.Load();
             if (loaded == null) { ShowTitle(); return; }
             run = loaded;
+            run.EnsureRows(); // 구버전 저장 — 배치 기본값 이관 (v0.9)
             shop = RunData.MakeShop();
             Debug.Log("[Flow] 이어하기 — 시드 " + run.Seed + ", 층 " + run.FloorReached);
             switch (run.Pending)
@@ -180,19 +181,23 @@ namespace Tanker
                 UiKit.Label("noheal", screen, new Vector2(0, 596), new Vector2(980, 40),
                     Loc.T("party.noHealer"), 26, UiKit.Hex("e8895e"), center: true);
 
+            // 진형 안내 (v0.9) — 배치가 왜 중요한지 숨기지 않는다
+            UiKit.Label("rowHint", screen, new Vector2(0, 552), new Vector2(980, 40),
+                Loc.T("party.rowHint"), 24, UiKit.Hex("9a92b8"), center: true);
+
             float y = 450;
-            DrawPartyRow(Loc.T("unit.tank"), "tank", RunState.TankMax, 0, true, y, Trait.None);
+            DrawPartyRow(Loc.T("unit.tank"), "tank", RunState.TankMax, 0, true, y, Trait.None, -1);
             for (int i = 0; i < run.Party.Count; i++)
             {
                 y -= 195;
                 var cd = RunData.Class(run.Party[i]);
-                DrawPartyRow(Loc.T(cd.LocKey), cd.Sheet, cd.Hp, cd.Power, cd.IsHealer, y, cd.Trait);
+                DrawPartyRow(Loc.T(cd.LocKey), cd.Sheet, cd.Hp, cd.Power, cd.IsHealer, y, cd.Trait, i);
             }
 
             UiKit.Btn("go", screen, new Vector2(0, -700), new Vector2(520, 130), Loc.T("party.go"), () => ShowMap(), 44, center: true);
         }
 
-        void DrawPartyRow(string name, string sheet, int hp, int power, bool healer, float y, Trait trait)
+        void DrawPartyRow(string name, string sheet, int hp, int power, bool healer, float y, Trait trait, int idx)
         {
             var row = UiKit.FramedPanel("row_" + name, screen, new Vector2(0, y), new Vector2(940, 180), center: true);
             row.raycastTarget = false;
@@ -208,8 +213,25 @@ namespace Tanker
             if (trait != Trait.None)
                 stat += "\n<color=#ffd75e>" + (trait == Trait.TankHealOnHit
                     ? Loc.F("trait." + trait, Balance.I.paladinTankHeal) : Loc.T("trait." + trait)) + "</color>";
-            UiKit.Label("pn_" + name, screen, new Vector2(90, y), new Vector2(620, 170),
+            UiKit.Label("pn_" + name, screen, new Vector2(60, y), new Vector2(560, 170),
                 name + "\n<size=24>" + stat + "</size>", 36, Color.white, TextAnchor.MiddleLeft, true, center: true);
+
+            // 진형 배치 (v0.9) — 탱커는 전열 고정 표시, 동료는 탭으로 전열/후열 전환
+            if (idx < 0)
+            {
+                UiKit.Label("rowFix_" + name, screen, new Vector2(388, y), new Vector2(150, 50),
+                    Loc.T("party.front"), 26, UiKit.Hex("8f86ad"), center: true);
+                return;
+            }
+            bool front = run.Rows[idx] == 0;
+            var rowBtn = UiKit.Btn("row_" + idx, screen, new Vector2(388, y), new Vector2(160, 72),
+                front ? Loc.T("party.front") : Loc.T("party.back"), () =>
+                {
+                    run.Rows[idx] = run.Rows[idx] == 0 ? 1 : 0;
+                    ShowParty();
+                }, 27, center: true);
+            var rowTxt = rowBtn.GetComponentInChildren<Text>();
+            rowTxt.color = front ? UiKit.Hex("ffd75e") : UiKit.Hex("8fd4ff");
         }
 
         // ---------- 맵 ----------

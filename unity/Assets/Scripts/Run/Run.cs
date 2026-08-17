@@ -23,6 +23,7 @@ namespace Tanker
     {
         public ClassId Id; public string LocKey, Sheet; public int Hp, Power; public bool IsHealer;
         public Trait Trait;
+        public bool Ranged;  // 원거리 클래스 — 진형(전열/후열) 공격 보정을 받지 않는다 (v0.9)
     }
 
     /// 던전 런 한 판의 상태 — 시드가 파티·인카운터·덱 셔플을 결정한다 (모든 랜덤은 사전 공개).
@@ -39,6 +40,7 @@ namespace Tanker
         public List<int> Visited = new();
         public List<ClassId> Party = new();   // 동료 (탱커 제외)
         public List<int> PartyHp = new();
+        public List<int> Rows = new();        // 동료 배치 — 0=전열 1=후열 (v0.9 진형, 탱커는 항상 전열)
         public List<Card> Deck = new();
         public List<RelicId> Relics = new();  // v0.7 유물
         public bool DpsShakenNext;            // 이벤트 (c) — 다음 전투에서 최강 공격수 위축 시작
@@ -102,9 +104,19 @@ namespace Tanker
                 }
             }
             foreach (var id in Party) PartyHp.Add(RunData.Class(id).Hp);
+            EnsureRows();
             Deck = Cards.StarterDeck();
             // 맵은 독립 서브시드 — 파티 생성 RNG 소비량이 바뀌어도 같은 시드의 맵은 유지된다
             Map = RunData.GenerateMap(new System.Random(seed * 613 + 101));
+        }
+
+        /// 배치 기본값 채우기 — 근접=전열, 원거리/힐러=후열. 구버전 저장 이관도 겸한다 (v0.9)
+        public void EnsureRows()
+        {
+            if (Rows == null) Rows = new List<int>();
+            while (Rows.Count < Party.Count)
+                Rows.Add(RunData.Class(Party[Rows.Count]).Ranged ? 1 : 0);
+            while (Rows.Count > Party.Count) Rows.RemoveAt(Rows.Count - 1);
         }
 
         /// camp=true(휴식 방)일 때만 물주머니 보너스 — 심층 진입 재정비 등엔 미적용
@@ -170,14 +182,15 @@ namespace Tanker
         public string NameKey, Sheet;
         public int Hp, Power, AoePower, ChargeOffset, Thorns, BountyGold, DamageCap;
         public AiKind Ai;
-        public bool Lifesteal, Aura, SelfShield, Pack;
+        public bool Lifesteal, Aura, SelfShield, Pack, Leap;
 
         public UnitDef(string nameKey, string sheet, int hp, int power, AiKind ai, int chargeOffset = 0, int aoePower = 0,
                        int thorns = 0, bool lifesteal = false, bool aura = false,
-                       bool selfShield = false, bool pack = false, int bountyGold = 0, int damageCap = 0)
+                       bool selfShield = false, bool pack = false, int bountyGold = 0, int damageCap = 0,
+                       bool leap = false)
         { NameKey = nameKey; Sheet = sheet; Hp = hp; Power = power; Ai = ai; ChargeOffset = chargeOffset; AoePower = aoePower;
           Thorns = thorns; Lifesteal = lifesteal; Aura = aura;
-          SelfShield = selfShield; Pack = pack; BountyGold = bountyGold; DamageCap = damageCap; }
+          SelfShield = selfShield; Pack = pack; BountyGold = bountyGold; DamageCap = damageCap; Leap = leap; }
     }
 
     public class EncounterDef
@@ -279,16 +292,16 @@ namespace Tanker
             {
                 case ClassId.Warrior: return new ClassDef { Id = id, LocKey = "class.warrior", Sheet = "warrior", Hp = b.warriorHp, Power = b.warriorPower, Trait = Trait.Momentum };
                 case ClassId.Rogue: return new ClassDef { Id = id, LocKey = "class.rogue", Sheet = "dps", Hp = b.rogueHp, Power = b.roguePower, Trait = Trait.GoldOnKill };
-                case ClassId.Mage: return new ClassDef { Id = id, LocKey = "class.mage", Sheet = "mage", Hp = b.mageHp, Power = b.magePower, Trait = Trait.ArcaneNova };
-                case ClassId.Ranger: return new ClassDef { Id = id, LocKey = "class.ranger", Sheet = "ranger", Hp = b.rangerHp, Power = b.rangerPower, Trait = Trait.Sniper };
+                case ClassId.Mage: return new ClassDef { Id = id, LocKey = "class.mage", Sheet = "mage", Hp = b.mageHp, Power = b.magePower, Trait = Trait.ArcaneNova, Ranged = true };
+                case ClassId.Ranger: return new ClassDef { Id = id, LocKey = "class.ranger", Sheet = "ranger", Hp = b.rangerHp, Power = b.rangerPower, Trait = Trait.Sniper, Ranged = true };
                 case ClassId.Assassin: return new ClassDef { Id = id, LocKey = "class.assassin", Sheet = "assassin", Hp = b.assassinHp, Power = b.assassinPower, Trait = Trait.FirstStrike };
                 case ClassId.Beastkin: return new ClassDef { Id = id, LocKey = "class.beastkin", Sheet = "beastkin", Hp = b.beastkinHp, Power = b.beastkinPower, Trait = Trait.Devour };
                 case ClassId.Warden: return new ClassDef { Id = id, LocKey = "class.warden", Sheet = "warden", Hp = b.wardenHp, Power = b.wardenPower, Trait = Trait.FullHpDouble };
                 case ClassId.Shadow: return new ClassDef { Id = id, LocKey = "class.shadow", Sheet = "shadow", Hp = b.shadowHp, Power = b.shadowPower, Trait = Trait.KillChain };
                 case ClassId.Paladin: return new ClassDef { Id = id, LocKey = "class.paladin", Sheet = "paladin", Hp = b.paladinHp, Power = b.paladinPower, Trait = Trait.TankHealOnHit };
                 case ClassId.Berserker: return new ClassDef { Id = id, LocKey = "class.berserker", Sheet = "berserker", Hp = b.berserkerHp, Power = b.berserkerPower, Trait = Trait.Frenzy };
-                case ClassId.Bard: return new ClassDef { Id = id, LocKey = "class.bard", Sheet = "bard", Hp = b.bardHp, Power = b.bardPower, Trait = Trait.Cleanse };
-                default: return new ClassDef { Id = id, LocKey = "class.cleric", Sheet = "healer", Hp = b.clericHp, Power = b.clericPower, IsHealer = true };
+                case ClassId.Bard: return new ClassDef { Id = id, LocKey = "class.bard", Sheet = "bard", Hp = b.bardHp, Power = b.bardPower, Trait = Trait.Cleanse, Ranged = true };
+                default: return new ClassDef { Id = id, LocKey = "class.cleric", Sheet = "healer", Hp = b.clericHp, Power = b.clericPower, IsHealer = true, Ranged = true };
             }
         }
 
@@ -298,7 +311,7 @@ namespace Tanker
         class EnemyPick
         {
             public string Key, Sheet; public int Hp, Power, Cost; public AiKind Ai;
-            public int Thorns, BountyGold, DamageCap; public bool Lifesteal, Aura, SelfShield, Pack;
+            public int Thorns, BountyGold, DamageCap; public bool Lifesteal, Aura, SelfShield, Pack, Leap;
         }
 
         static List<EnemyPick> EnemyPool()
@@ -313,16 +326,16 @@ namespace Tanker
                 new EnemyPick { Key = "unit.slime", Sheet = "slime", Hp = b.slimeHp, Power = b.slimePower, Ai = AiKind.LowestBackliner, Cost = 1 },
                 new EnemyPick { Key = "unit.orc", Sheet = "orc", Hp = b.orcHp, Power = b.orcPower, Ai = AiKind.FixedDps, Cost = 3 },
                 new EnemyPick { Key = "unit.shaman", Sheet = "shaman", Hp = b.shamanHp, Power = 0, Ai = AiKind.ShamanCurse, Cost = 3 },
-                new EnemyPick { Key = "unit.spider", Sheet = "spider", Hp = b.spiderHp, Power = b.spiderPower, Ai = AiKind.SpiderDouble, Cost = 3 },
+                new EnemyPick { Key = "unit.spider", Sheet = "spider", Hp = b.spiderHp, Power = b.spiderPower, Ai = AiKind.SpiderDouble, Cost = 3, Leap = true },
                 new EnemyPick { Key = "unit.brute", Sheet = "brute", Hp = b.bruteHp, Power = b.brutePower, Ai = AiKind.BruteCycle, Cost = 4 },
                 new EnemyPick { Key = "unit.golem", Sheet = "golem", Hp = b.golemHp, Power = b.golemPower, Ai = AiKind.LowestBackliner, Cost = 3, Thorns = b.golemThorns },
-                new EnemyPick { Key = "unit.bat", Sheet = "bat", Hp = b.batHp, Power = b.batPower, Ai = AiKind.LowestBackliner, Cost = 1, Lifesteal = true },
+                new EnemyPick { Key = "unit.bat", Sheet = "bat", Hp = b.batHp, Power = b.batPower, Ai = AiKind.LowestBackliner, Cost = 1, Lifesteal = true, Leap = true },
                 new EnemyPick { Key = "unit.necro", Sheet = "necro", Hp = b.necroHp, Power = 0, Ai = AiKind.EnemyHealer, Cost = 3 },
                 new EnemyPick { Key = "unit.chief", Sheet = "chief", Hp = b.chiefHp, Power = b.chiefPower, Ai = AiKind.LowestBackliner, Cost = 3, Aura = true },
                 new EnemyPick { Key = "unit.bomber", Sheet = "bomber", Hp = b.bomberHp, Power = 0, Ai = AiKind.Bomber, Cost = 3 },
                 new EnemyPick { Key = "unit.thief", Sheet = "thief", Hp = b.thiefHp, Power = 0, Ai = AiKind.Thief, Cost = 2 },
                 new EnemyPick { Key = "unit.skeleton", Sheet = "skeleton", Hp = b.skeletonHp, Power = b.skeletonPower, Ai = AiKind.LowestBackliner, Cost = 2, SelfShield = true },
-                new EnemyPick { Key = "unit.wolf", Sheet = "wolf", Hp = b.wolfHp, Power = b.wolfPower, Ai = AiKind.LowestBackliner, Cost = 2, Pack = true },
+                new EnemyPick { Key = "unit.wolf", Sheet = "wolf", Hp = b.wolfHp, Power = b.wolfPower, Ai = AiKind.LowestBackliner, Cost = 2, Pack = true, Leap = true },
                 new EnemyPick { Key = "unit.mimic", Sheet = "mimic", Hp = b.mimicHp, Power = b.mimicPower, Ai = AiKind.FixedDps, Cost = 2, BountyGold = b.mimicBounty },
                 new EnemyPick { Key = "unit.armor", Sheet = "armor", Hp = b.armorHp, Power = b.armorPower, Ai = AiKind.LowestBackliner, Cost = 3, DamageCap = b.armorDamageCap },
             };
@@ -433,7 +446,7 @@ namespace Tanker
                 units[i] = new UnitDef(p.Key, p.Sheet, ScaledHp(p.Hp, stage), ScaledPower(p.Power, stage),
                                        p.Ai, chargeOffset: p.Ai == AiKind.BruteCycle ? (bruteOffset++ % 2) : 0,
                                        thorns: p.Thorns, lifesteal: p.Lifesteal, aura: p.Aura,
-                                       selfShield: p.SelfShield, pack: p.Pack, bountyGold: p.BountyGold, damageCap: p.DamageCap);
+                                       selfShield: p.SelfShield, pack: p.Pack, bountyGold: p.BountyGold, damageCap: p.DamageCap, leap: p.Leap);
             }
             EncounterTitleKeys(picked, elite, out var tKey, out var tArg);
             return new EncounterDef

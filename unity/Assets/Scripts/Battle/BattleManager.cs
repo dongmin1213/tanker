@@ -86,6 +86,8 @@ namespace Tanker
                 u.Hp = Mathf.Clamp(run.PartyHp[i], 1, cd.Hp);
                 u.NameKey = cd.LocKey;
                 u.Trait = cd.Trait;
+                u.RangedClass = cd.Ranged;
+                u.Row = i < run.Rows.Count ? run.Rows[i] : (cd.Ranged ? 1 : 0); // 진형 (v0.9)
                 Allies.Add(u);
             }
             if (run.DpsShakenNext)
@@ -106,6 +108,7 @@ namespace Tanker
                 e.Aura = d.Aura;
                 e.SelfShield = d.SelfShield;
                 e.Pack = d.Pack;
+                e.Leap = d.Leap;
                 e.BountyGold = d.BountyGold;
                 e.DamageCap = d.DamageCap;
                 if (d.SelfShield) e.ShieldCharges = 1;
@@ -201,10 +204,18 @@ namespace Tanker
             int dmg = e.Ai == AiKind.SpiderDouble ? e.Power * 2 : e.Power;
             dmg += AuraBonus(e);
             var prev = e.Intent; // RollIntents 재할당 전이라 직전 턴 대상이 남아 있다
+
+            // 진형 (v0.9): 근접 적은 전열 아군이 있으면 전열만 노린다 — 도약형(거미·박쥐·늑대)은 무시
+            bool frontOnly = false;
+            if (!e.Leap)
+                foreach (var a in Allies)
+                    if (a.Alive && !a.IsTank && a.Row == 0) { frontOnly = true; break; }
+
             Unit kill = null, low = null, lowAlt = null;
             foreach (var a in Allies)
             {
                 if (!a.Alive || a.IsTank) continue;
+                if (frontOnly && a.Row != 0) continue;
                 if (a.Hp <= dmg && (kill == null || a.Power > kill.Power)) kill = a;
                 if (low == null || a.Hp < low.Hp) low = a;
                 if (a != prev && (lowAlt == null || a.Hp < lowAlt.Hp)) lowAlt = a;
@@ -230,7 +241,10 @@ namespace Tanker
             return kill ?? focus;
         }
 
-        int EnemyThreat(Unit e) => (IsStunnedNow(e) || e.Charging ? 0 : 100) + e.Power; // 예약 밀치기도 위협 0
+        /// 아군 킬각 우선순위 — 예약 밀치기는 위협 0, 폭발 임박·지휘 오라는 최우선 (예측·해소 공용)
+        int EnemyThreat(Unit e) => (IsStunnedNow(e) || e.Charging ? 0 : 100) + e.Power
+            + (e.Aura ? Balance.I.threatAuraBonus : 0)
+            + (e.Ai == AiKind.Bomber && e.BombTimer <= 1 ? Balance.I.threatBombBonus : 0);
 
         /// 아군 공격수의 이번 타 피해 — 클래스 특성 전부 반영 (예측·해소 공용)
         int AllyDamage(Unit a) => AllyDamage(a, a.Shaken, a.Momentum);
@@ -238,6 +252,12 @@ namespace Tanker
         int AllyDamage(Unit a, bool shaken, int momentum)
         {
             int d = shaken ? a.Power / 2 : a.Power;
+            // 진형 (v0.9): 근접 클래스는 전열 +, 후열 - (원거리는 무관) — 배율 특성 전에 적용
+            if (!a.IsTank && !a.RangedClass)
+            {
+                if (a.Row == 0) d += Balance.I.rowFrontBonus;
+                else d = Mathf.Max(1, d - Balance.I.rowBackPenalty);
+            }
             if (Turn == 1 && run != null && run.Has(RelicId.WarBanner)) d += Balance.I.relicWarBanner; // 군기
             if (a.Trait == Trait.Frenzy && a.Hp * 2 <= a.MaxHp) d *= 2;       // 광전사: 반피 이하 2배
             if (a.Trait == Trait.FullHpDouble && a.Hp >= a.MaxHp) d *= 2;     // 문지기: 풀피 2배
@@ -274,6 +294,7 @@ namespace Tanker
         {
             var b = Balance.I;
             string notice = null;
+            Unit packTarget = null; // 늑대 무리 — 같은 사냥감을 함께 문다 (v0.9)
             foreach (var e in Enemies)
             {
                 e.Charging = false; e.AoeIntent = false; e.CurseIntent = null; e.HealIntent = null;
@@ -317,7 +338,12 @@ namespace Tanker
                         e.Intent = StrongestAttacker() ?? LowestNonTank();
                         break;
                     case AiKind.LowestBackliner:
-                        e.Intent = SmartBackliner(e);
+                        if (e.Pack)
+                        {
+                            if (packTarget == null || !packTarget.Alive) packTarget = SmartBackliner(e);
+                            e.Intent = packTarget;
+                        }
+                        else e.Intent = SmartBackliner(e);
                         break;
                     case AiKind.SpiderDouble:
                         e.Intent = SmartBackliner(e);
