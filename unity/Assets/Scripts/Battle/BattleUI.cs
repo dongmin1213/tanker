@@ -19,6 +19,7 @@ namespace Tanker
         readonly Dictionary<Unit, int> previewCache = new();
         int previewVersion = -1;
         readonly Dictionary<Unit, Vector2> posOf = new();
+        readonly Dictionary<Unit, float> allyScale = new(); // 열 혼잡도별 스프라이트 배율 (기본 1.5)
         Text turnText, savedText, logText, drawText, discardText, deckViewText, planText, hintText, statusText;
         GameFlow flow;
 
@@ -255,23 +256,28 @@ namespace Tanker
 
             // 아군 슬롯 — 탱커 전열 고정 + 동료는 진형(전열=적 쪽, 후열=왼쪽 뒤)대로 배치 (v0.9)
             posOf[mgr.Tank] = new Vector2(400, 1120);
-            // 같은 열 안에서 세로 220+ 간격, x 지그재그 — 스프라이트·라벨 겹침 방지 (v0.9 전수검사 H-02)
-            var frontSlots = new[]
-            {
-                new Vector2(300, 1340), new Vector2(345, 1570),
-                new Vector2(255, 1760), new Vector2(200, 1210),
-            };
-            var backSlots = new[]
-            {
-                new Vector2(105, 1260), new Vector2(140, 1500),
-                new Vector2(75, 1720), new Vector2(60, 1120),
-            };
+            // 열 인원수에 맞춘 슬롯 — 대형 근접 3명이 한 열에 몰려도 겹치지 않게
+            // 슬롯 간격과 스프라이트 배율을 함께 조절한다 (실기 검증: 공격 진형 3근접 겹침)
+            int frontN = 0, backN = 0;
+            for (int i = 1; i < mgr.Allies.Count; i++)
+                if (mgr.Allies[i].Row == 0) frontN++; else backN++;
+            Vector2[] ColSlots(bool front, int n) => front
+                ? n <= 1 ? new[] { new Vector2(310, 1400) }
+                : n == 2 ? new[] { new Vector2(295, 1300), new Vector2(340, 1600) }
+                : new[] { new Vector2(230, 1290), new Vector2(340, 1450), new Vector2(225, 1610), new Vector2(345, 1765) }
+                : n <= 1 ? new[] { new Vector2(110, 1400) }
+                : n == 2 ? new[] { new Vector2(100, 1290), new Vector2(135, 1590) }
+                : new[] { new Vector2(115, 1280), new Vector2(60, 1440), new Vector2(135, 1600), new Vector2(70, 1755) };
+            var frontSlots = ColSlots(true, frontN);
+            var backSlots = ColSlots(false, backN);
             int fi = 0, bi = 0;
             for (int i = 1; i < mgr.Allies.Count; i++)
             {
-                var rowSlots = mgr.Allies[i].Row == 0 ? frontSlots : backSlots;
-                int si = mgr.Allies[i].Row == 0 ? fi++ : bi++;
+                bool front = mgr.Allies[i].Row == 0;
+                var rowSlots = front ? frontSlots : backSlots;
+                int si = front ? fi++ : bi++;
                 posOf[mgr.Allies[i]] = rowSlots[Mathf.Min(si, rowSlots.Length - 1)];
+                allyScale[mgr.Allies[i]] = (front ? frontN : backN) >= 3 ? 1.2f : 1.5f;
             }
 
             // 적 슬롯 — 큰 놈이 앞
@@ -343,6 +349,7 @@ namespace Tanker
 
         void MakeUnitView(Unit u)
         {
+            float scale = allyScale.TryGetValue(u, out var sc) ? sc : 1.5f;
             var size = SizeOf(u);
             var c = FallbackColor(u);
             var idle = LoadSheet(u.Sheet + "-idle");
@@ -358,11 +365,11 @@ namespace Tanker
             Image spriteImg = null, glow = null;
             if (idle != null)
             {
-                glow = Panel("glow", body.rectTransform, new Vector2(0, size.y * 0.08f), size * 1.7f, Color.clear, center: true);
+                glow = Panel("glow", body.rectTransform, new Vector2(0, size.y * 0.08f), size * (scale + 0.2f), Color.clear, center: true);
                 glow.sprite = glowSprite; glow.raycastTarget = false;
                 var shadow = Panel("shadow", body.rectTransform, new Vector2(0, -size.y * 0.52f), new Vector2(size.x * 1.05f, size.y * 0.22f), new Color(0, 0, 0, 0.35f), center: true);
                 shadow.sprite = glowSprite; shadow.raycastTarget = false;
-                var spRt = Rt("sprite", body.rectTransform, new Vector2(0, size.y * 0.08f), size * 1.5f, center: true);
+                var spRt = Rt("sprite", body.rectTransform, new Vector2(0, size.y * 0.08f), size * scale, center: true);
                 spriteImg = spRt.gameObject.AddComponent<Image>();
                 spriteImg.preserveAspect = true; spriteImg.raycastTarget = false;
                 spriteImg.sprite = idle[0];
