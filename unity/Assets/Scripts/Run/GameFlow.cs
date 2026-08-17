@@ -137,9 +137,10 @@ namespace Tanker
             UiKit.Label("ver", screen, new Vector2(0, -860), new Vector2(800, 40), Loc.T("title.ver"), 26, UiKit.Hex("8f86ad"), center: true);
         }
 
-        public void StartRun()
+        /// fixedSeed: 같은 원정 재도전 — 같은 시드는 같은 파티·맵·조우를 만든다
+        public void StartRun(int? fixedSeed = null)
         {
-            int seed = System.Environment.TickCount & 0x7fffffff;
+            int seed = fixedSeed ?? (System.Environment.TickCount & 0x7fffffff);
             bool firstRun = PlayerPrefs.GetInt("runs.started", 0) == 0;
             PlayerPrefs.SetInt("runs.started", PlayerPrefs.GetInt("runs.started", 0) + 1);
             RunSave.Clear();
@@ -306,9 +307,11 @@ namespace Tanker
                 Loc.T("map.pick"), 26, UiKit.Hex("ffd75e"), center: true);
         }
 
-        // 층수는 balance 소관 — 층이 늘면 간격을 압축해 파티 스트립(y 638)과 겹치지 않게
-        static Vector2 NodePos(MapNode n) =>
-            new Vector2(n.X, -570 + n.Floor * Mathf.Min(132f, 1040f / (Balance.I.mapFloors - 1)));
+        // 층수는 balance 소관 — 층이 늘면 간격·노드 크기를 함께 압축해
+        // 상단 골드 라벨(y 490)·하단 안내(y -700)와 겹치지 않게 (실기 검증: 10층에서 보스 노드가 라벨을 가림)
+        static float MapStep => Mathf.Min(132f, 970f / (Balance.I.mapFloors - 1));
+        static float MapScale => Mathf.Clamp(MapStep / 132f, 0.8f, 1f);
+        static Vector2 NodePos(MapNode n) => new Vector2(n.X, -590 + n.Floor * MapStep);
 
         void DrawMiniAlly(float x, float y, string sheet, string name, int hp, int maxHp)
         {
@@ -355,7 +358,7 @@ namespace Tanker
             var p = NodePos(n);
             bool done = run.Visited.Contains(n.Id) && run.Cur != n.Id;
             bool now = run.Cur == n.Id;
-            float s = now || canGo ? 130 : 114; // 모바일 터치 타겟 확대 (크리틱 반영)
+            float s = (now || canGo ? 130 : 114) * MapScale; // 터치 타겟 확대, 층수에 맞춰 축소
             var frame = UiKit.FramedPanel("node" + n.Id, screen, p, new Vector2(s, s), center: true);
             frame.raycastTarget = canGo;
             if (now) frame.color = new Color(1.25f, 1.2f, 0.85f);
@@ -402,7 +405,8 @@ namespace Tanker
                 var tk = UiKit.LoadSheet("tank-idle");
                 if (tk != null)
                 {
-                    var marker = UiKit.Panel("nm" + n.Id, screen, p + new Vector2(-s / 2 + 6, s / 2 - 2), new Vector2(52, 58), Color.white, center: true);
+                    // 프레임 안쪽 좌상단 — 이웃 노드 아이콘과 겹치지 않게 (실기 검증)
+                    var marker = UiKit.Panel("nm" + n.Id, screen, p + new Vector2(-s / 2 + 22, s / 2 - 26), new Vector2(40, 46), Color.white, center: true);
                     marker.sprite = tk[0]; marker.preserveAspect = true; marker.raycastTarget = false;
                 }
             }
@@ -983,11 +987,15 @@ namespace Tanker
                 Loc.F("end.act", run.Act + 1) + "\n" +
                 Loc.F("end.stats", run.FloorReached, Balance.I.mapFloors, run.BattlesWon,
                       run.TotalRedirected, run.TotalMitigated, run.Gold)
-                + "\n" + Loc.F("end.time", (int)(run.PlaySeconds / 60), (int)(run.PlaySeconds % 60))
-                + "\n<size=24>" + Loc.F("end.seed", run.Seed) + "</size>", 32, Color.white, center: true);
+                + "\n" + Loc.F("end.time", (int)(run.PlaySeconds / 60), (int)(run.PlaySeconds % 60)),
+                32, Color.white, center: true);
 
-            UiKit.Btn("retry", screen, new Vector2(0, -520), new Vector2(520, 125), Loc.T("end.retry"), () => StartRun(), 40, center: true);
-            UiKit.Btn("title", screen, new Vector2(0, -680), new Vector2(520, 110), Loc.T("end.title"), () => ShowTitle(), 38, center: true);
+            // 시드 숫자 노출 대신 기능으로 — 같은 시드 = 같은 파티·맵·조우 (유저 피드백 "시드가 뭐임")
+            int seed = run.Seed;
+            UiKit.Btn("retry", screen, new Vector2(0, -500), new Vector2(560, 120), Loc.T("end.retry"), () => StartRun(), 40, center: true);
+            UiKit.Btn("retrySame", screen, new Vector2(0, -630), new Vector2(560, 105),
+                Loc.T("end.retrySame"), () => StartRun(seed), 30, center: true);
+            UiKit.Btn("title", screen, new Vector2(0, -750), new Vector2(560, 100), Loc.T("end.title"), () => ShowTitle(), 34, center: true);
         }
     }
 }

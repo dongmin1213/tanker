@@ -505,7 +505,7 @@ namespace Tanker
             ["remove.desc"] = new[] { "제거할 카드를 선택 ({0}G) — 덱이 가벼울수록 원하는 카드가 자주 온다.", "Pick a card to remove ({0}G) — a lean deck draws what you need." },
             ["remove.back"] = new[] { "돌아간다", "Back" },
             ["rest.desc2"] = new[] { "잠시나마 등을 벽에 기댄다.\n전원 회복 (나 +{0})", "For a moment, we rest our backs against the wall.\nEveryone recovers (Me +{0})" },
-            ["end.seed"] = new[] { "시드: {0}", "Seed: {0}" },
+            ["end.retrySame"] = new[] { "같은 원정 재도전 — 구성·맵·조우 그대로", "Retry this run — same party, map & foes" },
         };
     }
 }
