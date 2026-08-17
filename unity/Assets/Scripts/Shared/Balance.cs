@@ -153,6 +153,20 @@ namespace Tanker
         public int altarHpCost = 6;        // 수상한 제단: 탱커 HP를 바치고 유물
         public int relicDupGold = 30;      // 유물이 다 떨어졌을 때 대체 골드
 
+        // v0.8 — 신규 적 4종
+        public int skeletonHp = 12; public int skeletonPower = 4;  // 매턴 방패 1회
+        public int wolfHp = 9; public int wolfPower = 3; public int packBonus = 1; // 무리당 +
+        public int mimicHp = 13; public int mimicPower = 5; public int mimicBounty = 12; // 처치 골드
+        public int armorHp = 18; public int armorPower = 4; public int armorDamageCap = 3; // 받는 피해 상한
+
+        // v0.8 — 2막·최종 보스 리치 왕
+        public int actStageBonus = 8;      // 2막 스케일 = 층 + 보너스
+        public float descendHeal = 0.25f;  // 심층 진입 시 전원 회복 비율
+        public int lichHp = 60;
+        public int lichPower = 12;
+        public int lichAoePower = 4;       // 사령 폭풍 — 탱커 포함 전원
+        public int lichEnrageHp = 30;
+
         public int guardPrice = 40;
         public int guardValue = 2;
         public int coverPrice = 50;

@@ -31,6 +31,7 @@ namespace Tanker
     public class RunState
     {
         public int Seed;
+        public int Act;                       // 0 = 1막, 1 = 2막(심층) — v0.8
         public int Cur = -1;                  // 현재 방 Id (-1 = 아직 입장 전 — 1층에서 고른다)
         public int Gold;
         public int TankHp;
@@ -140,14 +141,16 @@ namespace Tanker
     public class UnitDef
     {
         public string NameKey, Sheet;
-        public int Hp, Power, AoePower, ChargeOffset, Thorns;
+        public int Hp, Power, AoePower, ChargeOffset, Thorns, BountyGold, DamageCap;
         public AiKind Ai;
-        public bool Lifesteal, Aura;
+        public bool Lifesteal, Aura, SelfShield, Pack;
 
         public UnitDef(string nameKey, string sheet, int hp, int power, AiKind ai, int chargeOffset = 0, int aoePower = 0,
-                       int thorns = 0, bool lifesteal = false, bool aura = false)
+                       int thorns = 0, bool lifesteal = false, bool aura = false,
+                       bool selfShield = false, bool pack = false, int bountyGold = 0, int damageCap = 0)
         { NameKey = nameKey; Sheet = sheet; Hp = hp; Power = power; Ai = ai; ChargeOffset = chargeOffset; AoePower = aoePower;
-          Thorns = thorns; Lifesteal = lifesteal; Aura = aura; }
+          Thorns = thorns; Lifesteal = lifesteal; Aura = aura;
+          SelfShield = selfShield; Pack = pack; BountyGold = bountyGold; DamageCap = damageCap; }
     }
 
     public class EncounterDef
@@ -157,12 +160,16 @@ namespace Tanker
         public UnitDef[] Units;
     }
 
+    /// 상점 매물 — 키만 저장하고 표시 시점에 번역한다 (언어 전환·영어 모드 대응)
     public class ShopItem
     {
-        public string Name, Desc;
+        public string NameKey, DescKey;
+        public int DescArg;
         public int Price;
         public System.Action<RunState> Apply;
         public bool Bought;
+        public string Name => Loc.T(NameKey);
+        public string Desc => DescArg != 0 ? Loc.F(DescKey, DescArg) : Loc.T(DescKey);
     }
 
     /// 런 콘텐츠 — 분기 맵 생성, 클래스/적 풀, 시드 기반 인카운터, 스테이지 스케일링. 수치는 Balance, 문자열은 Loc.
@@ -262,7 +269,7 @@ namespace Tanker
         class EnemyPick
         {
             public string Key, Sheet; public int Hp, Power, Cost; public AiKind Ai;
-            public int Thorns; public bool Lifesteal, Aura;
+            public int Thorns, BountyGold, DamageCap; public bool Lifesteal, Aura, SelfShield, Pack;
         }
 
         static List<EnemyPick> EnemyPool()
@@ -285,6 +292,10 @@ namespace Tanker
                 new EnemyPick { Key = "unit.chief", Sheet = "chief", Hp = b.chiefHp, Power = b.chiefPower, Ai = AiKind.LowestBackliner, Cost = 3, Aura = true },
                 new EnemyPick { Key = "unit.bomber", Sheet = "bomber", Hp = b.bomberHp, Power = 0, Ai = AiKind.Bomber, Cost = 3 },
                 new EnemyPick { Key = "unit.thief", Sheet = "thief", Hp = b.thiefHp, Power = 0, Ai = AiKind.Thief, Cost = 2 },
+                new EnemyPick { Key = "unit.skeleton", Sheet = "skeleton", Hp = b.skeletonHp, Power = b.skeletonPower, Ai = AiKind.LowestBackliner, Cost = 2, SelfShield = true },
+                new EnemyPick { Key = "unit.wolf", Sheet = "wolf", Hp = b.wolfHp, Power = b.wolfPower, Ai = AiKind.LowestBackliner, Cost = 2, Pack = true },
+                new EnemyPick { Key = "unit.mimic", Sheet = "mimic", Hp = b.mimicHp, Power = b.mimicPower, Ai = AiKind.FixedDps, Cost = 2, BountyGold = b.mimicBounty },
+                new EnemyPick { Key = "unit.armor", Sheet = "armor", Hp = b.armorHp, Power = b.armorPower, Ai = AiKind.LowestBackliner, Cost = 3, DamageCap = b.armorDamageCap },
             };
         }
 
@@ -303,6 +314,24 @@ namespace Tanker
             return Loc.F("enc.ambush", Loc.T(lead.Key));
         }
 
+        /// 도감용 적 목록 — 풀 전체 + 보스 2종, 시트 기준 중복 제거 (v0.8)
+        public struct CodexEnemy { public string Key, Sheet; public int Hp, Power; }
+
+        public static List<CodexEnemy> EnemyCodex()
+        {
+            var b = Balance.I;
+            var list = new List<CodexEnemy>();
+            var seen = new HashSet<string>();
+            foreach (var p in EnemyPool())
+            {
+                if (!seen.Add(p.Sheet)) continue;
+                list.Add(new CodexEnemy { Key = p.Key, Sheet = p.Sheet, Hp = p.Hp, Power = p.Power });
+            }
+            list.Add(new CodexEnemy { Key = "unit.warlord", Sheet = "boss", Hp = b.bossHp, Power = b.bossPower });
+            list.Add(new CodexEnemy { Key = "unit.lich", Sheet = "lich", Hp = b.lichHp, Power = b.lichPower });
+            return list;
+        }
+
         static int ScaledHp(int hp, int stage) =>
             (int)System.Math.Round(hp * (1f + Balance.I.scaleHpPct * stage));
 
@@ -313,13 +342,25 @@ namespace Tanker
         public static EncounterDef GetEncounter(RunState run)
         {
             var b = Balance.I;
-            // 스케일링은 층 기반 — 전투를 피해 달려도 깊이만큼 강해진다 (승전 수 기반은 회피 러시가 최적이 되는 구멍)
-            int stage = run.CurNode.Floor;
+            // 스케일링은 층 기반 — 전투를 피해 달려도 깊이만큼 강해진다. 2막은 층 + 보너스 (v0.8)
+            int stage = run.CurNode.Floor + run.Act * b.actStageBonus;
             bool elite = run.CurNode.Type == NodeType.Elite;
-            var rng = new System.Random(run.Seed * 977 + run.Cur * 131);
+            var rng = new System.Random(run.Seed * 977 + (run.Act + 1) * 419 + run.Cur * 131);
 
             if (run.CurNode.Type == NodeType.Boss)
             {
+                if (run.Act >= 1)
+                    return new EncounterDef
+                    {
+                        Title = Loc.T("enc.lich"),
+                        Gold = 0,
+                        Units = new[]
+                        {
+                            new UnitDef("unit.lich", "lich", b.lichHp, b.lichPower,
+                                        AiKind.LichBoss, aoePower: b.lichAoePower),
+                            new UnitDef("unit.necro", "necro", ScaledHp(b.necroHp, stage), 0, AiKind.EnemyHealer),
+                        },
+                    };
                 return new EncounterDef
                 {
                     Title = Loc.T("enc.warlord"),
@@ -359,7 +400,8 @@ namespace Tanker
                 var p = picked[i];
                 units[i] = new UnitDef(p.Key, p.Sheet, ScaledHp(p.Hp, stage), ScaledPower(p.Power, stage),
                                        p.Ai, chargeOffset: p.Ai == AiKind.BruteCycle ? (bruteOffset++ % 2) : 0,
-                                       thorns: p.Thorns, lifesteal: p.Lifesteal, aura: p.Aura);
+                                       thorns: p.Thorns, lifesteal: p.Lifesteal, aura: p.Aura,
+                                       selfShield: p.SelfShield, pack: p.Pack, bountyGold: p.BountyGold, damageCap: p.DamageCap);
             }
             return new EncounterDef
             {
@@ -374,10 +416,10 @@ namespace Tanker
             var b = Balance.I;
             return new List<ShopItem>
             {
-                new ShopItem { Name = Loc.T("item.guard"), Desc = Loc.F("item.guard.desc", b.guardValue), Price = b.guardPrice, Apply = r => r.TauntGuard += b.guardValue },
-                new ShopItem { Name = Loc.T("item.cover"), Desc = Loc.F("item.cover.desc", b.coverValue), Price = b.coverPrice, Apply = r => r.CoverReduce += b.coverValue },
-                new ShopItem { Name = Loc.T("item.brace"), Desc = Loc.F("item.brace.desc", b.braceValue), Price = b.bracePrice, Apply = r => r.BraceBonus += b.braceValue },
-                new ShopItem { Name = Loc.T("item.potion"), Desc = Loc.F("item.potion.desc", b.potionHeal), Price = b.potionPrice, Apply = r => r.TankHp = System.Math.Min(RunState.TankMax, r.TankHp + b.potionHeal) },
+                new ShopItem { NameKey = "item.guard", DescKey = "item.guard.desc", DescArg = b.guardValue, Price = b.guardPrice, Apply = r => r.TauntGuard += b.guardValue },
+                new ShopItem { NameKey = "item.cover", DescKey = "item.cover.desc", DescArg = b.coverValue, Price = b.coverPrice, Apply = r => r.CoverReduce += b.coverValue },
+                new ShopItem { NameKey = "item.brace", DescKey = "item.brace.desc", DescArg = b.braceValue, Price = b.bracePrice, Apply = r => r.BraceBonus += b.braceValue },
+                new ShopItem { NameKey = "item.potion", DescKey = "item.potion.desc", DescArg = b.potionHeal, Price = b.potionPrice, Apply = r => r.TankHp = System.Math.Min(r.TankMaxHp, r.TankHp + b.potionHeal) },
             };
         }
     }

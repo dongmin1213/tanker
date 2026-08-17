@@ -91,6 +91,11 @@ namespace Tanker
                 e.Thorns = d.Thorns;
                 e.Lifesteal = d.Lifesteal;
                 e.Aura = d.Aura;
+                e.SelfShield = d.SelfShield;
+                e.Pack = d.Pack;
+                e.BountyGold = d.BountyGold;
+                e.DamageCap = d.DamageCap;
+                if (d.SelfShield) e.ShieldCharges = 1;
                 if (d.Ai == AiKind.Bomber) e.BombTimer = b.bomberFuse;
                 Enemies.Add(e);
             }
@@ -243,6 +248,8 @@ namespace Tanker
             { killer.Hp = Mathf.Min(killer.MaxHp, killer.Hp + b.devourHeal); Popup?.Invoke(killer, "+" + b.devourHeal, new Color(0.55f, 1f, 0.55f)); }
             if (dead.Ai == AiKind.Thief && dead.StolenGold > 0)
             { BonusGold += dead.StolenGold + b.thiefSteal; Popup?.Invoke(dead, "+" + (dead.StolenGold + b.thiefSteal) + "G", new Color(1f, 0.84f, 0.37f)); }
+            if (dead.BountyGold > 0)
+            { BonusGold += dead.BountyGold; Popup?.Invoke(dead, "+" + dead.BountyGold + "G", new Color(1f, 0.84f, 0.37f)); } // 미믹 전리품
         }
 
         // ---- 인텐트 ----
@@ -255,9 +262,26 @@ namespace Tanker
             {
                 e.Charging = false; e.AoeIntent = false; e.CurseIntent = null; e.HealIntent = null;
                 if (!e.Alive) { e.Intent = null; continue; }
+                if (e.SelfShield) e.ShieldCharges = 1; // 해골 방패병 — 매턴 방패 리필
                 e.Step++;
                 switch (e.Ai)
                 {
+                    case AiKind.LichBoss:
+                        var lichNotice = CheckEnrage(e, b.lichEnrageHp, 0, Loc.F("log.enrageLich", e.Name));
+                        if (lichNotice != null) { notice = lichNotice; e.Step = 1; }
+                        if (!e.Enraged)
+                        {
+                            int lp = (e.Step - 1) % 3;
+                            if (lp == 0) { e.Intent = null; e.Charging = true; }
+                            else if (lp == 1) e.AoeIntent = true;      // 사령 폭풍 — 탱커 포함 전원
+                            else e.Intent = StrongestAttacker() ?? LowestNonTank();
+                        }
+                        else
+                        {
+                            if (e.Step % 2 == 1) e.AoeIntent = true;
+                            else e.Intent = StrongestAttacker() ?? LowestNonTank();
+                        }
+                        break;
                     case AiKind.Bomber:
                         e.Intent = null;
                         e.BombTimer--; // 표시: 남은 턴, 0이면 이번 해소에 폭발
@@ -375,13 +399,21 @@ namespace Tanker
 
         /// 통합 피해 계산 — 예측과 해소가 이 함수 하나를 쓴다.
         /// hitIndex: 연타에서 몇 번째 타인가 (엄호는 0타만 리다이렉트).
-        /// 고블린 대장 오라 — 대장이 아닌 적의 공격에 +N (대장 생존 시)
+        /// 고블린 대장 오라(+대장 외 전원) + 늑대 무리(살아있는 다른 늑대 수만큼 +)
         int AuraBonus(Unit attacker)
         {
-            if (attacker.Team != Team.Enemy || attacker.Aura) return 0;
-            foreach (var e in Enemies) if (e.Alive && e.Aura) return Balance.I.chiefAura;
-            return 0;
+            if (attacker.Team != Team.Enemy) return 0;
+            int bonus = 0;
+            if (!attacker.Aura)
+                foreach (var e in Enemies) if (e.Alive && e.Aura) { bonus += Balance.I.chiefAura; break; }
+            if (attacker.Pack)
+                foreach (var e in Enemies) if (e.Alive && e.Pack && e != attacker) bonus += Balance.I.packBonus;
+            return bonus;
         }
+
+        /// 저주 갑옷 — 받는 한 방 피해 상한 (아군 공격·노바·가시 전부 적용, 예측 공용)
+        static int CapTo(Unit target, int dmg) =>
+            target.DamageCap > 0 ? Mathf.Min(dmg, target.DamageCap) : dmg;
 
         int ComputeDamage(Unit enemy, Unit receiver, int baseDmg, bool viaTaunt, bool viaCover)
         {
@@ -454,8 +486,9 @@ namespace Tanker
                 {
                     foreach (var b in Allies)
                     {
-                        if (b.IsTank || !b.Alive) continue;
-                        bool covered = CoverPreview == b;
+                        if (!b.Alive) continue;
+                        if (b.IsTank && e.Ai != AiKind.LichBoss) continue; // 리치 폭풍만 탱커 포함
+                        bool covered = !b.IsTank && CoverPreview == b;
                         Add(covered ? Tank : b, EffectiveAoeDamage(e, b));
                     }
                     continue;
@@ -484,7 +517,9 @@ namespace Tanker
             var shaken = new Dictionary<Unit, bool>();
             var momentum = new Dictionary<Unit, int>();
             var lastT = new Dictionary<Unit, Unit>();
+            var shield = new Dictionary<Unit, int>();
             foreach (var a in Allies) { shaken[a] = a.Shaken; momentum[a] = a.Momentum; lastT[a] = a.LastTarget; }
+            foreach (var e in Enemies) if (e.Alive && e.ShieldCharges > 0) shield[e] = e.ShieldCharges;
             int HpOf(Unit e) => hp.TryGetValue(e, out var v) && !killed.Contains(e) ? v : 0;
 
             foreach (var a in Allies)
@@ -496,7 +531,12 @@ namespace Tanker
                     int nova = Mathf.Max(1, AllyDamage(a, shaken[a], 0) / 2);
                     shaken[a] = false;
                     foreach (var e in Enemies)
-                        if (HpOf(e) > 0) { hp[e] -= nova; if (hp[e] <= 0) killed.Add(e); }
+                    {
+                        if (HpOf(e) <= 0) continue;
+                        if (shield.TryGetValue(e, out var sc2) && sc2 > 0) { shield[e] = sc2 - 1; continue; }
+                        hp[e] -= CapTo(e, nova);
+                        if (hp[e] <= 0) killed.Add(e);
+                    }
                     continue;
                 }
 
@@ -512,7 +552,8 @@ namespace Tanker
                         dmg = AllyDamage(a, shaken[a], momentum[a]);
                     }
                     shaken[a] = false;
-                    hp[tgt] -= dmg;
+                    if (shield.TryGetValue(tgt, out var sc) && sc > 0) { shield[tgt] = sc - 1; break; } // 방패병 미러
+                    hp[tgt] -= CapTo(tgt, dmg);
                     bool died = hp[tgt] <= 0;
                     if (died) killed.Add(tgt);
                     // 음유시인 정화를 해소와 같은 순서로 반영 — 뒤 순번 공격수의 피해가 달라진다
@@ -762,8 +803,8 @@ namespace Tanker
             int tankThorns = ThornStanceAmt + (run != null && run.Has(RelicId.ThornShield) ? Balance.I.relicThornShield : 0);
             if (receiver.IsTank && dmg > 0 && attacker.Team == Team.Enemy && tankThorns > 0 && attacker.Alive)
             {
-                attacker.Hp = Mathf.Max(0, attacker.Hp - tankThorns);
-                Popup?.Invoke(attacker, "-" + tankThorns, new Color(0.95f, 0.6f, 0.35f));
+                attacker.Hp = Mathf.Max(0, attacker.Hp - CapTo(attacker, tankThorns));
+                Popup?.Invoke(attacker, "-" + CapTo(attacker, tankThorns), new Color(0.95f, 0.6f, 0.35f));
             }
 
             // 흡혈 — 준 피해(분담 포함)만큼 회복
@@ -809,8 +850,14 @@ namespace Tanker
                     foreach (var e2 in Enemies)
                     {
                         if (!e2.Alive) continue;
-                        e2.Hp = Mathf.Max(0, e2.Hp - nova);
-                        Popup?.Invoke(e2, "-" + nova, new Color(0.75f, 0.6f, 1f));
+                        if (e2.ShieldCharges > 0)
+                        {
+                            e2.ShieldCharges--;
+                            Popup?.Invoke(e2, Loc.T("pop.blocked"), new Color(0.7f, 0.85f, 1f));
+                            continue;
+                        }
+                        e2.Hp = Mathf.Max(0, e2.Hp - CapTo(e2, nova));
+                        Popup?.Invoke(e2, "-" + CapTo(e2, nova), new Color(0.75f, 0.6f, 1f));
                         if (!e2.Alive) OnEnemyKilled(a, e2);
                     }
                     Log = Loc.F("log.nova", a.Name, nova);
@@ -834,7 +881,18 @@ namespace Tanker
                     }
                     a.Shaken = false;
                     Strike?.Invoke(a, target);
+                    if (target.ShieldCharges > 0)
+                    {
+                        // 해골 방패병 — 방패가 한 방을 막는다
+                        target.ShieldCharges--;
+                        AudioKit.Guard();
+                        Popup?.Invoke(target, Loc.T("pop.blocked"), new Color(0.7f, 0.85f, 1f));
+                        Log = Loc.F("log.blocked", target.Name);
+                        yield return quick;
+                        break;
+                    }
                     AudioKit.Hit();
+                    dmg = CapTo(target, dmg);
                     target.Hp = Mathf.Max(0, target.Hp - dmg);
                     Popup?.Invoke(target, "-" + dmg, Color.white);
                     Log = Loc.F("log.allyHit", a.Name, target.Name, dmg);
@@ -956,8 +1014,9 @@ namespace Tanker
                 {
                     foreach (var b in Allies)
                     {
-                        if (b.IsTank || !b.Alive) continue;
-                        bool covered = CoverTarget == b;
+                        if (!b.Alive) continue;
+                        if (b.IsTank && e.Ai != AiKind.LichBoss) continue; // 리치 폭풍만 탱커 포함
+                        bool covered = !b.IsTank && CoverTarget == b;
                         var receiver = covered ? Tank : b;
                         ApplyHit(e, b, receiver, e.AoePower, false, covered);
                         yield return quick;

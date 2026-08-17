@@ -39,7 +39,8 @@ namespace Tanker
 
         void Clear()
         {
-            DeckViewUI.Close(); // 이전 화면에서 열린 덱 열람이 새 화면 위에 남지 않게
+            DeckViewUI.Close(); // 이전 화면에서 열린 오버레이가 새 화면 위에 남지 않게
+            StatusUI.Close();
             animImg = null; animFrames = null;
             if (screen != null)
             {
@@ -120,8 +121,11 @@ namespace Tanker
             if (canContinue)
                 UiKit.Btn("continue", screen, new Vector2(0, -560), new Vector2(520, 120),
                     Loc.T("title.continue"), () => ContinueRun(), 38, center: true);
-            UiKit.Btn("help", screen, new Vector2(0, canContinue ? -710 : -640), new Vector2(360, 96),
+            float rowY = canContinue ? -710 : -640;
+            UiKit.Btn("help", screen, new Vector2(-190, rowY), new Vector2(350, 96),
                 Loc.T("title.help"), () => HelpUI.Open(), 30, center: true);
+            UiKit.Btn("codex", screen, new Vector2(190, rowY), new Vector2(350, 96),
+                Loc.T("codex.h1"), () => CodexUI.Open(), 30, center: true);
             UiKit.Label("ver", screen, new Vector2(0, -860), new Vector2(800, 40), Loc.T("title.ver"), 26, UiKit.Hex("8f86ad"), center: true);
         }
 
@@ -208,9 +212,14 @@ namespace Tanker
             Gear();
             Banner(Loc.T("map.h1"), 790);
 
-            // 파티 현황 스트립 — 미니 초상 + HP (맵이 주인공 — 스트립은 낮게)
+            // 파티 현황 스트립 — 미니 초상 + HP. 탭하면 내 상태(유물·덱) 열람 (v0.8)
             var strip = UiKit.FramedPanel("strip", screen, new Vector2(0, 622), new Vector2(1000, 190), center: true);
-            strip.raycastTarget = false;
+            strip.raycastTarget = true;
+            var stripBtn = strip.gameObject.AddComponent<Button>();
+            stripBtn.transition = Selectable.Transition.None;
+            stripBtn.onClick.AddListener(() => { AudioKit.Click(); StatusUI.Open(run); });
+            UiKit.Label("stripHint", screen, new Vector2(430, 692), new Vector2(200, 30),
+                Loc.T("status.tap"), 19, UiKit.Hex("8f86ad"), TextAnchor.MiddleRight, center: true);
             int count = 1 + run.Party.Count;
             float step = Mathf.Min(190f, 880f / count);
             float x0 = -(count - 1) * step / 2f;
@@ -397,6 +406,36 @@ namespace Tanker
             ShowCardRewardInner(true, got);
         }
 
+        // ---------- 심층 선택 (v0.8 — 2막) ----------
+
+        /// 워로드 격파 후: 여기서 끝내면 승리, 더 내려가면 2막 (플레이타임 15분/30분 조절 장치)
+        public void ShowDescend()
+        {
+            currentScreen = ShowDescend;
+            Clear();
+            Background(0.5f);
+            Gear();
+            Banner(Loc.T("descend.h1"), 640);
+            Deco("tank-idle", new Vector2(0, 380), new Vector2(300, 340), animate: true);
+            var descP = UiKit.FramedPanel("descP", screen, new Vector2(0, 120), new Vector2(940, 180), center: true);
+            descP.raycastTarget = false;
+            UiKit.Label("desc", screen, new Vector2(0, 120), new Vector2(880, 160),
+                Loc.T("descend.desc"), 30, UiKit.Hex("cfc8e8"), center: true);
+
+            UiKit.Btn("descend", screen, new Vector2(0, -90), new Vector2(860, 130), Loc.T("descend.go"), () =>
+            {
+                run.Act = 1;
+                run.RestAll(Balance.I.descendHeal); // 심층 진입 전 재정비
+                run.Map = RunData.GenerateMap(new System.Random(run.Seed * 777 + 13));
+                run.Cur = -1;
+                run.Visited.Clear();
+                RunSave.Save(run);
+                ShowMap();
+            }, 33, center: true);
+
+            UiKit.Btn("return", screen, new Vector2(0, -260), new Vector2(860, 120), Loc.T("descend.return"), () => ShowEnding(true), 33, center: true);
+        }
+
         // ---------- 유물 (v0.7) ----------
 
         RelicId? RandomNewRelic()
@@ -486,8 +525,9 @@ namespace Tanker
             Destroy(battleGo);
             battleGo = null;
             if (!won) ShowEnding(false);
-            else if (wasBoss) ShowEnding(true);
-            else if (wasElite) ShowRelicGain(); // 엘리트 — 유물 확정 보상 후 카드 보상
+            else if (wasBoss && run.Act == 0) ShowDescend(); // 1막 보스 격파 — 귀환/심층 선택 (v0.8)
+            else if (wasBoss) ShowEnding(true);              // 리치 격파 — 진엔딩
+            else if (wasElite) ShowRelicGain();              // 엘리트 — 유물 확정 보상 후 카드 보상
             else ShowCardReward();
         }
 
@@ -851,9 +891,10 @@ namespace Tanker
             Clear();
             Background(won ? 0.3f : 0.78f);
             Gear(onTitle: true);
-            Banner(Loc.T(won ? "end.win.h1" : "end.lose.h1"), 640);
+            bool trueEnd = won && run.Act >= 1; // 리치까지 격파한 진엔딩
+            Banner(Loc.T(trueEnd ? "end.true.h1" : won ? "end.win.h1" : "end.lose.h1"), 640);
             UiKit.Label("desc", screen, new Vector2(0, 520), new Vector2(940, 100),
-                Loc.T(won ? "end.win.desc" : "end.lose.desc"),
+                Loc.T(trueEnd ? "end.true.desc" : won ? "end.win.desc" : "end.lose.desc"),
                 36, won ? UiKit.Hex("ffd75e") : UiKit.Hex("cfc8e8"), center: true);
 
             var hero = Deco("tank-idle", new Vector2(0, 280), new Vector2(340, 380), animate: won);
@@ -862,6 +903,7 @@ namespace Tanker
             var statsP = UiKit.FramedPanel("statsP", screen, new Vector2(0, -180), new Vector2(940, 420), center: true);
             statsP.raycastTarget = false;
             UiKit.Label("stats", screen, new Vector2(0, -170), new Vector2(860, 380),
+                Loc.F("end.act", run.Act + 1) + "\n" +
                 Loc.F("end.stats", run.FloorReached, Balance.I.mapFloors, run.BattlesWon,
                       run.TotalRedirected, run.TotalMitigated, run.Gold)
                 + "\n<size=24>" + Loc.F("end.seed", run.Seed) + "</size>", 34, Color.white, center: true);

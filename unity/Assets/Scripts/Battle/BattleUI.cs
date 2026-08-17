@@ -19,7 +19,18 @@ namespace Tanker
         readonly Dictionary<Unit, int> previewCache = new();
         int previewVersion = -1;
         readonly Dictionary<Unit, Vector2> posOf = new();
-        Text turnText, savedText, logText, drawText, discardText, deckViewText, planText;
+        Text turnText, savedText, logText, drawText, discardText, deckViewText, planText, hintText, statusText;
+        GameFlow flow;
+
+        /// 언어 전환 시 정적 라벨 리바인딩 — 유닛 이름만 다음 전투부터 적용 (유저 피드백)
+        public void RebindStatic()
+        {
+            if (goBtn != null) goBtn.GetComponentInChildren<Text>().text = Loc.T("skill.go");
+            if (hintText != null) hintText.text = Loc.T("hint.cards");
+            if (statusText != null) statusText.text = Loc.T("status.h1");
+            if (deckViewText != null && flow != null) deckViewText.text = Loc.F("bt.deckView", flow.run.Deck.Count);
+            if (resultPanel != null && resultPanel.activeSelf) SetResultTexts();
+        }
         static Sprite cardBackCache;
         static bool cardBackTried;
 
@@ -27,12 +38,12 @@ namespace Tanker
         Text MakePileBadge(string name, Vector2 pos, System.Action onTap)
         {
             // 히트박스는 시각보다 넓게 (모바일 최소 터치 크기) — 실제 이미지는 자식으로
-            var hit = Panel(name + "Hit", root, pos + new Vector2(0, 8), new Vector2(96, 112), Color.clear);
+            var hit = Panel(name + "Hit", root, pos, new Vector2(96, 96), Color.clear);
             hit.raycastTarget = true;
             var hitBtn = hit.gameObject.AddComponent<Button>();
             hitBtn.transition = Selectable.Transition.None;
             hitBtn.onClick.AddListener(() => { AudioKit.Click(); onTap(); });
-            var img = Panel(name, root, pos, new Vector2(58, 82), Color.white);
+            var img = Panel(name, root, pos, new Vector2(48, 68), Color.white);
             if (!cardBackTried)
             {
                 cardBackTried = true;
@@ -44,7 +55,7 @@ namespace Tanker
             else if (UiKit.CardSprite != null) { img.sprite = UiKit.CardSprite; img.type = Image.Type.Sliced; }
             else img.color = Hex("241d33");
             img.raycastTarget = false; // 입력은 확장 히트박스가 받는다
-            return Label(name + "N", img.rectTransform, Vector2.zero, new Vector2(58, 82), "", 30, Color.white, center: true);
+            return Label(name + "N", img.rectTransform, Vector2.zero, new Vector2(48, 68), "", 26, Color.white, center: true);
         }
         Button[] cardBtns;   // 크기 = balance.handSize (BuildLayout에서 생성)
         Text[] cardTexts;
@@ -130,6 +141,10 @@ namespace Tanker
                 case "bat": return new Vector2(120, 100);
                 case "chief": return new Vector2(160, 180);
                 case "bomber": case "thief": return new Vector2(140, 150);
+                case "skeleton": case "armor": return new Vector2(150, 170);
+                case "wolf": return new Vector2(150, 130);
+                case "mimic": return new Vector2(140, 130);
+                case "lich": return new Vector2(250, 300);
                 default: return new Vector2(140, 160);
             }
         }
@@ -164,6 +179,11 @@ namespace Tanker
                 case "chief": return Hex("7a8f3f");
                 case "bomber": return Hex("8f5f3f");
                 case "thief": return Hex("6a5f3f");
+                case "skeleton": return Hex("9a9a8a");
+                case "wolf": return Hex("6a6a72");
+                case "mimic": return Hex("8f6f3f");
+                case "armor": return Hex("55608f");
+                case "lich": return Hex("4f8f6a");
                 default: return Hex("6a8f4f");
             }
         }
@@ -195,29 +215,34 @@ namespace Tanker
                 bg.raycastTarget = false;
             }
             else Panel("bgTop", stage, new Vector2(540, 1330), new Vector2(1080, 1180), Hex("1a1626"));
-            var bottom = UiKit.FramedPanel("bgBottom", root, new Vector2(540, 160), new Vector2(1120, 1180));
+            // 하단 패널 축소 (top 750→620) — 전투 필드 130px 확장 (유저 제안)
+            var bottom = UiKit.FramedPanel("bgBottom", root, new Vector2(540, 95), new Vector2(1120, 1050));
             bottom.raycastTarget = false;
 
             turnText = Label("turn", root, new Vector2(540, 1850), new Vector2(1000, 50), "", 40, Color.white, bold: true);
             savedText = Label("saved", root, new Vector2(540, 1790), new Vector2(1000, 40), "", 30, Hex("ffd75e"));
-            logText = Label("log", root, new Vector2(540, 770), new Vector2(1020, 60), "", 34, Hex("cfc8e8"));
-            // 하단 패널 헤더 — 좌: 내 덱 열람 버튼. 좌하/우하: 뽑을·버림 더미(미니 카드 + 숫자, 탭=덱 열람)
-            var flowRef = Object.FindFirstObjectByType<GameFlow>();
+            logText = Label("log", root, new Vector2(540, 648), new Vector2(1020, 56), "", 33, Hex("cfc8e8"));
+            // 하단 패널 헤더 — 좌: 내 덱·상태 버튼, 우상: 뽑을·버림 더미(미니 카드 + 숫자, 탭=덱 열람)
+            var flowRef = flow = Object.FindFirstObjectByType<GameFlow>();
             System.Action openDeck = () =>
             {
                 if (mgr.Phase != Phase.Player) return; // 해소 중 스냅샷 수치 어긋남 방지
                 if (flowRef != null) DeckViewUI.Open(flowRef.run.Deck, mgr.Hand.Count, mgr.DrawCount, mgr.DiscardCount);
             };
-            var deckBtn = UiKit.Btn("deckView", root, new Vector2(128, 700), new Vector2(196, 52), "", () => openDeck(), 24);
+            var deckBtn = UiKit.Btn("deckView", root, new Vector2(128, 572), new Vector2(196, 52), "", () => openDeck(), 24);
             deckViewText = deckBtn.GetComponentInChildren<Text>();
             if (flowRef != null) deckViewText.text = Loc.F("bt.deckView", flowRef.run.Deck.Count);
-            drawText = MakePileBadge("drawPile", new Vector2(62, 62), openDeck);
-            discardText = MakePileBadge("discardPile", new Vector2(1018, 62), openDeck);
-            Label("drawL", root, new Vector2(62, 12), new Vector2(140, 26), Loc.T("bt.drawL"), 18, Hex("8f86ad"));
-            Label("discardL", root, new Vector2(1018, 12), new Vector2(140, 26), Loc.T("bt.discardL"), 18, Hex("8f86ad"));
+            var statusBtn = UiKit.Btn("status", root, new Vector2(336, 572), new Vector2(180, 52), Loc.T("status.h1"), () =>
+            {
+                if (flowRef != null) StatusUI.Open(flowRef.run);
+            }, 24); // 내 상태 — 유물·파티 열람 (v0.8)
+            statusText = statusBtn.GetComponentInChildren<Text>();
+            // 더미는 우상단 (유저 제안 — 하단 공간 확보)
+            drawText = MakePileBadge("drawPile", new Vector2(902, 572), openDeck);
+            discardText = MakePileBadge("discardPile", new Vector2(1010, 572), openDeck);
 
             // 예약 상태 요약 — 무엇을 골랐고 누구에게 가는지 (온보딩 크리틱 반영)
-            planText = Label("plan", root, new Vector2(540, 250), new Vector2(900, 40), "", 26, Hex("ffd75e"));
+            planText = Label("plan", root, new Vector2(540, 176), new Vector2(900, 38), "", 25, Hex("ffd75e"));
 
             // 아군 슬롯 — 탱커 고정 + 동료 최대 4
             posOf[mgr.Tank] = new Vector2(400, 1120);
@@ -230,12 +255,13 @@ namespace Tanker
                 posOf[mgr.Allies[i]] = allySlots[i - 1];
 
             // 적 슬롯 — 큰 놈이 앞
+            // 패널 축소로 넓어진 필드 활용 — 적 간격 확대 (이름·인텐트 라벨 겹침 해소)
             var slots = mgr.Enemies.Count switch
             {
-                1 => new[] { new Vector2(770, 1160) },
-                2 => new[] { new Vector2(760, 1130), new Vector2(885, 1500) },
-                3 => new[] { new Vector2(770, 1100), new Vector2(890, 1310), new Vector2(730, 1490) },
-                _ => new[] { new Vector2(770, 1090), new Vector2(920, 1280), new Vector2(730, 1450), new Vector2(930, 1560) },
+                1 => new[] { new Vector2(770, 1100) },
+                2 => new[] { new Vector2(760, 1040), new Vector2(890, 1460) },
+                3 => new[] { new Vector2(770, 1000), new Vector2(900, 1260), new Vector2(720, 1500) },
+                _ => new[] { new Vector2(760, 960), new Vector2(940, 1170), new Vector2(700, 1380), new Vector2(930, 1590) },
             };
             var ordered = new List<Unit>(mgr.Enemies);
             ordered.Sort((a, b) => (SizeOf(b).x * SizeOf(b).y).CompareTo(SizeOf(a).x * SizeOf(a).y));
@@ -270,17 +296,16 @@ namespace Tanker
             for (int i = 0; i < hs; i++)
             {
                 int idx = i;
-                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(540, 468), new Vector2(cardW, 360), "", () => mgr.PressCard(idx), 30);
+                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(540, 386), new Vector2(cardW, 330), "", () => mgr.PressCard(idx), 30);
                 if (UiKit.CardSprite != null) cardBtns[i].GetComponent<Image>().sprite = UiKit.CardSprite; // 카드 전용 프레임
                 cardTexts[i] = cardBtns[i].GetComponentInChildren<Text>();
                 cardTexts[i].horizontalOverflow = HorizontalWrapMode.Wrap;
-                cardTexts[i].rectTransform.sizeDelta = new Vector2(cardW - 28, 340);
+                cardTexts[i].rectTransform.sizeDelta = new Vector2(cardW - 28, 310);
             }
-            goBtn = UiKit.Btn("go", root, new Vector2(540, 155), new Vector2(830, 130), Loc.T("skill.go"), () => mgr.EndTurn(), 42); // 더미 배지와 입력 영역 분리
-            Label("hintGo", root, new Vector2(540, 45), new Vector2(620, 40), Loc.T("hint.cards"), 20, Hex("8f86ad"));
+            goBtn = UiKit.Btn("go", root, new Vector2(540, 104), new Vector2(880, 108), Loc.T("skill.go"), () => mgr.EndTurn(), 42);
+            hintText = Label("hintGo", root, new Vector2(540, 28), new Vector2(860, 34), Loc.T("hint.cards"), 20, Hex("8f86ad"));
 
-            var flow = Object.FindFirstObjectByType<GameFlow>();
-            SettingsUI.AttachGear(root, null, flow != null ? (System.Action)flow.AbortBattleToTitle : null);
+            SettingsUI.AttachGear(root, RebindStatic, flow != null ? (System.Action)flow.AbortBattleToTitle : null);
 
             // 결과 오버레이 — 긴 화면(19.5:9)까지 덮는 딤 + 중앙 결과 카드 (뒤 화면 비침 방지)
             resultPanel = Panel("result", root, new Vector2(540, 960), new Vector2(1500, 2600), new Color(0, 0, 0, 0.88f)).gameObject;
@@ -375,22 +400,7 @@ namespace Tanker
             if (resultPanel.activeSelf != over)
             {
                 resultPanel.SetActive(over);
-                if (over)
-                {
-                    bool won = mgr.Phase == Phase.Won;
-                    var tank = LoadSheet("tank-idle");
-                    if (tank != null)
-                    {
-                        resultHero.sprite = tank[0];
-                        resultHero.color = won ? Color.white : new Color(0.4f, 0.36f, 0.45f);
-                    }
-                    resultText.text = Loc.T(won ? "result.winT" : "result.loseT");
-                    resultText.color = won ? Hex("ffd75e") : Hex("c96a6a");
-                    resultSubText.text = won ? Loc.F("result.winSub", mgr.EncounterTitle) : Loc.T("result.loseSub");
-                    resultStatsText.text = Loc.F("result.stats", mgr.RedirectedSaved, mgr.MitigatedSaved)
-                        + (won && mgr.RewardGold > 0 ? "\n<color=#ffd75e>" + Loc.F("result.loot", mgr.RewardGold) + "</color>" : "");
-                    resultBtnText.text = Loc.T(won ? "result.continue" : "result.view");
-                }
+                if (over) SetResultTexts();
             }
         }
 
@@ -413,7 +423,7 @@ namespace Tanker
                 bool has = i < mgr.Hand.Count;
                 cardBtns[i].gameObject.SetActive(has);
                 if (!has) continue;
-                ((RectTransform)cardBtns[i].transform).anchoredPosition = new Vector2(x0 + i * spacing, 468);
+                ((RectTransform)cardBtns[i].transform).anchoredPosition = new Vector2(x0 + i * spacing, 386);
                 var card = mgr.Hand[i];
                 cardTexts[i].text = Cards.NameOf(card)
                     + "\n<size=19>" + BadgeOf(card.Type) + "</size>"
@@ -435,6 +445,23 @@ namespace Tanker
                 planText.color = Hex("ffd75e");
             }
             else planText.text = "";
+        }
+
+        void SetResultTexts()
+        {
+            bool won = mgr.Phase == Phase.Won;
+            var tank = LoadSheet("tank-idle");
+            if (tank != null)
+            {
+                resultHero.sprite = tank[0];
+                resultHero.color = won ? Color.white : new Color(0.4f, 0.36f, 0.45f);
+            }
+            resultText.text = Loc.T(won ? "result.winT" : "result.loseT");
+            resultText.color = won ? Hex("ffd75e") : Hex("c96a6a");
+            resultSubText.text = won ? Loc.F("result.winSub", mgr.EncounterTitle) : Loc.T("result.loseSub");
+            resultStatsText.text = Loc.F("result.stats", mgr.RedirectedSaved, mgr.MitigatedSaved)
+                + (won && mgr.RewardGold > 0 ? "\n<color=#ffd75e>" + Loc.F("result.loot", mgr.RewardGold) + "</color>" : "");
+            resultBtnText.text = Loc.T(won ? "result.continue" : "result.view");
         }
 
         void RefreshUnitText(UnitView v)
@@ -460,6 +487,9 @@ namespace Tanker
             else if (u.Thorns > 0) v.Status.text = Loc.F("st.thorns", u.Thorns);
             else if (u.Lifesteal) v.Status.text = Loc.T("st.lifesteal");
             else if (u.Aura) v.Status.text = Loc.T("st.aura");
+            else if (u.Pack) v.Status.text = Loc.T("st.pack");
+            else if (u.DamageCap > 0) v.Status.text = Loc.F("st.cap", u.DamageCap);
+            else if (u.BountyGold > 0) v.Status.text = Loc.F("st.bounty", u.BountyGold);
             else if (u.Ai == AiKind.EnemyHealer) v.Status.text = Loc.T("st.enemyHealer");
             else v.Status.text = "";
 

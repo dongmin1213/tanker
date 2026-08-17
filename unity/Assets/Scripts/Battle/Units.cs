@@ -17,6 +17,7 @@ namespace Tanker
         EnemyHealer,      // 공격 대신 가장 다친 다른 적을 회복. 도발되면 행동 낭비
         Bomber,           // 카운트다운 후 전원 광역 자폭 — 죽이면 해제 (v0.7)
         Thief,            // 공격 대신 골드를 훔침 — 처치하면 이자 붙여 회수 (v0.7)
+        LichBoss,         // 2막 최종 보스: ①차징 ②사령 폭풍(탱커 포함 전원) ③강타 — 격노 시 폭풍 반복 (v0.8)
     }
 
     /// 아군 클래스 고유 특성 — 겹치지 않는 매커니즘 (풀 확장 규칙)
@@ -69,6 +70,10 @@ namespace Tanker
         public int StolenGold;   // Thief 전용: 훔친 골드 누적
         public int Momentum;     // 전사 전용: 연속 공격 누적
         public Unit LastTarget;  // 전사 전용: 직전 공격 대상
+        public bool SelfShield;  // 해골 방패병: 매턴 방패 1회 리필 (v0.8)
+        public bool Pack;        // 늑대: 살아있는 다른 늑대 수만큼 공격 + (v0.8)
+        public int BountyGold;   // 미믹: 처치 시 골드 드랍 (v0.8)
+        public int DamageCap;    // 저주 갑옷: 받는 한 방 피해 상한 (0 = 없음) (v0.8)
 
         public bool Alive => Hp > 0;
 

@@ -142,5 +142,22 @@
   "novaEvery": 3,
   "devourHeal": 3,
   "altarHpCost": 6,
-  "relicDupGold": 30
+  "relicDupGold": 30,
+  "skeletonHp": 12,
+  "skeletonPower": 4,
+  "wolfHp": 9,
+  "wolfPower": 3,
+  "packBonus": 1,
+  "mimicHp": 13,
+  "mimicPower": 5,
+  "mimicBounty": 12,
+  "armorHp": 18,
+  "armorPower": 4,
+  "armorDamageCap": 3,
+  "actStageBonus": 8,
+  "descendHeal": 0.25,
+  "lichHp": 60,
+  "lichPower": 12,
+  "lichAoePower": 4,
+  "lichEnrageHp": 30
 }
