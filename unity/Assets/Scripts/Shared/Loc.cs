@@ -559,6 +559,7 @@ namespace Tanker
             ["card.Study.s"] = new[] { "약점 관찰", "Study" },
             ["card.LastStand"] = new[] { "최후의 저항", "Last Stand" },
             ["card.LastStand.desc"] = new[] { "내 HP 절반 이하일 때만 — 이번 턴 완전 무적", "Only below half HP — I am immune this turn" },
+            ["card.LastStand.descPlus"] = new[] { "HP 절반 이하 — 이번 턴 완전 무적 + 다음 턴 아군 전원 공격 2배", "Below half HP — immune this turn + allies double attack next turn" },
             ["card.LastStand.s"] = new[] { "무적", "Invulnerable" },
             // --- 신규 유물 20 ---
             ["relic.StoneHeart"] = new[] { "석심", "Stone Heart" },
@@ -655,6 +656,7 @@ namespace Tanker
             ["log.rot"] = new[] { "{0}가 이번 턴 회복을 막았다", "{0} blocks healing this turn" },
             ["log.dispel"] = new[] { "{0}가 내 방어를 부숴버렸다", "{0} shatters my defenses" },
             ["pop.dispel"] = new[] { "해제!", "Dispelled!" },
+            ["log.hiddenTarget"] = new[] { "숨어 있는 적은 조준할 수 없다", "You cannot target a hidden foe" },
             ["log.hidden"] = new[] { "{0}는 몸을 숨겼다", "{0} is hidden" },
             ["log.split"] = new[] { "{0}의 잔해에서 {1}마리가 일어났다", "{1} spawn from {0}'s remains" },
             ["log.spawn"] = new[] { "{0}가 새끼 {1}마리를 낳았다", "{0} spawns {1} broodlings" },
@@ -718,7 +720,7 @@ namespace Tanker
             ["help.t1"] = new[] { "2. 카드는 예약제", "2. Cards are reservations" },
             ["help.b1"] = new[] { "매 턴 4장을 뽑아 1장만 쓴다.\n\n· 카드를 탭 → (대상 카드면) 빛나는 대상을 탭 → 진행\n· 진행을 누르기 전엔 언제든 취소 가능\n· 안 쓴 손패는 버려지고, 덱이 떨어지면 버림 더미를 섞어 다시 쓴다\n· 카드를 아끼는 턴도 유효한 전략이다", "Draw 4 each turn, play at most 1.\n\n· Tap a card → (if targeted) tap a glowing unit → Go\n· Cancel anytime before pressing Go\n· Unplayed cards are discarded; when the deck runs dry the discard pile is reshuffled\n· Saving your card is a valid play" },
             ["help.t2"] = new[] { "3. 파티는 매번 다르다", "3. Every party is different" },
-            ["help.b2"] = new[] { "원정마다 12개 클래스에서 무작위 동료가 온다. 전원 고유 능력이 있다.\n\n· 힐러(클레릭)가 없으면 회복 카드가 생명줄\n· 광전사는 반피 이하일 때, 문지기는 풀피일 때 강하다 — 누굴 지킬지가 곧 빌드\n· 첫 원정만 고정 파티로 시작한다", "Each run brings random companions from 12 classes, all with unique abilities.\n\n· No cleric? Healing cards are your lifeline\n· The Berserker is strong below half HP, the Warden at full — who you protect is your build\n· Only your first run uses a fixed party" },
+            ["help.b2"] = new[] { "원정마다 20개 클래스에서 무작위 동료가 온다. 전원 고유 능력이 있다.\n\n· 힐러(클레릭)가 없으면 회복 카드가 생명줄\n· 광전사는 반피 이하일 때, 문지기는 풀피일 때 강하다 — 누굴 지킬지가 곧 빌드\n· 첫 원정만 고정 파티로 시작한다", "Each run brings random companions from 20 classes, all with unique abilities.\n\n· No cleric? Healing cards are your lifeline\n· The Berserker is strong below half HP, the Warden at full — who you protect is your build\n· Only your first run uses a fixed party" },
             ["help.t3"] = new[] { "4. 던전은 갈림길이다", "4. The dungeon branches" },
             ["help.b3"] = new[] { "연결된 방만 갈 수 있다. 깊이 내려갈수록 적이 강해진다.\n\n· 엘리트: 강하지만 유물(영구 패시브) 확정\n· 휴식: 회복 또는 카드 강화 택1\n· 상점·보물·함정을 경로에 넣을지가 전략\n· 방을 마칠 때마다 자동 저장된다 — 언제든 이어하기", "You can only move along connected rooms. Enemies grow stronger the deeper you go.\n\n· Elite: tough, but a guaranteed relic (permanent passive)\n· Rest: heal OR upgrade a card\n· Routing through shops, treasure and traps is the strategy\n· Progress auto-saves after every room — continue anytime" },
 

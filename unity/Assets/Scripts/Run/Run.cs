@@ -99,6 +99,7 @@ namespace Tanker
             if (Has(r)) return;
             Relics.Add(r);
             if (r == RelicId.IronHeart) TankHp += Balance.I.relicIronHeart; // 최대와 함께 현재 HP도 상승
+            if (TankHp > TankMaxHp) TankHp = TankMaxHp;                     // 피의 계약 등 최대 HP 감소 유물 보정
         }
 
         public MapNode CurNode => Cur >= 0 ? Map[Cur] : null;
@@ -554,10 +555,19 @@ namespace Tanker
                 if (cand.MinFloor > run.CurNode.Floor + run.Act * b.mapFloors) continue; // 후반 전용 적
                 if (cand.Cost > budget && picked.Count >= 2) break;
                 if (cand.Cost > budget) continue;
+                // 방어 카운터형(관통·환경·회복차단·회복반전)은 한 조우에 최대 2종 — 불가능 난이도 방지
+                bool counter = cand.Pierce || cand.Env || cand.HealBlock || cand.Ai == AiKind.Rotmancer;
+                if (counter)
+                {
+                    int cn = 0;
+                    foreach (var q in picked) if (q.Pierce || q.Env || q.HealBlock || q.Ai == AiKind.Rotmancer) cn++;
+                    if (cn >= 2) continue;
+                }
                 picked.Add(cand);
                 budget -= cand.Cost;
-                // 쌍둥이 검사는 반드시 짝으로 등장 (혼자면 광분 매커니즘이 무의미)
-                if (cand.Ai == AiKind.TwinBlade && picked.Count < 4) { picked.Add(cand); budget -= cand.Cost; }
+                // 쌍둥이 검사는 짝으로만 의미가 있다 — 예산이 남을 때만 짝을 붙인다
+                if (cand.Ai == AiKind.TwinBlade && picked.Count < 4 && budget >= cand.Cost)
+                { picked.Add(cand); budget -= cand.Cost; }
             }
             while (picked.Count < 2) { picked.Add(pool[4]); } // 최소 2마리 (슬라임 보충)
 

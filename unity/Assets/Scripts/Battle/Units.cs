@@ -95,6 +95,7 @@ namespace Tanker
         public bool Pack;        // 늑대: 살아있는 다른 늑대 수만큼 공격 + (v0.8)
         public int Row;          // 아군 진형 — 0=전열 1=후열 (v0.9, 탱커는 항상 0)
         // v1.0 상태·플래그
+        public int PoisonIncoming; // 이번 턴 부여 예정 독 (프리뷰 집계용)
         public int Poison;       // 독 중첩 — 적 페이즈 종료마다 중첩당 1 피해 (적·아군 공용)
         public bool Petrified;   // 석화 — 이번 턴 행동 취소 (아군)
         public int Retaliation;  // 거인 피격 누적
