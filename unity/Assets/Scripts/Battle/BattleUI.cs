@@ -261,13 +261,14 @@ namespace Tanker
             int frontN = 0, backN = 0;
             for (int i = 1; i < mgr.Allies.Count; i++)
                 if (mgr.Allies[i].Row == 0) frontN++; else backN++;
+            // 유닛은 배경 바닥 타일 구간(y ≤ ~1560)에만 선다 — 벽 위에 서면 부자연 (유저 피드백)
             Vector2[] ColSlots(bool front, int n) => front
-                ? n <= 1 ? new[] { new Vector2(310, 1400) }
-                : n == 2 ? new[] { new Vector2(295, 1300), new Vector2(340, 1600) }
-                : new[] { new Vector2(230, 1290), new Vector2(340, 1450), new Vector2(225, 1610), new Vector2(345, 1765) }
-                : n <= 1 ? new[] { new Vector2(110, 1400) }
-                : n == 2 ? new[] { new Vector2(100, 1290), new Vector2(135, 1590) }
-                : new[] { new Vector2(115, 1280), new Vector2(60, 1440), new Vector2(135, 1600), new Vector2(70, 1755) };
+                ? n <= 1 ? new[] { new Vector2(310, 1330) }
+                : n == 2 ? new[] { new Vector2(295, 1250), new Vector2(340, 1480) }
+                : new[] { new Vector2(240, 1220), new Vector2(345, 1350), new Vector2(230, 1480), new Vector2(350, 1560) }
+                : n <= 1 ? new[] { new Vector2(110, 1330) }
+                : n == 2 ? new[] { new Vector2(100, 1240), new Vector2(135, 1470) }
+                : new[] { new Vector2(115, 1210), new Vector2(60, 1340), new Vector2(135, 1470), new Vector2(70, 1555) };
             var frontSlots = ColSlots(true, frontN);
             var backSlots = ColSlots(false, backN);
             int fi = 0, bi = 0;
@@ -277,7 +278,7 @@ namespace Tanker
                 var rowSlots = front ? frontSlots : backSlots;
                 int si = front ? fi++ : bi++;
                 posOf[mgr.Allies[i]] = rowSlots[Mathf.Min(si, rowSlots.Length - 1)];
-                allyScale[mgr.Allies[i]] = (front ? frontN : backN) >= 3 ? 1.2f : 1.5f;
+                allyScale[mgr.Allies[i]] = (front ? frontN : backN) >= 3 ? 1.15f : 1.4f;
             }
 
             // 적 슬롯 — 큰 놈이 앞
@@ -285,9 +286,9 @@ namespace Tanker
             var slots = mgr.Enemies.Count switch
             {
                 1 => new[] { new Vector2(770, 1100) },
-                2 => new[] { new Vector2(760, 1040), new Vector2(890, 1460) },
-                3 => new[] { new Vector2(770, 1000), new Vector2(900, 1260), new Vector2(720, 1500) },
-                _ => new[] { new Vector2(760, 960), new Vector2(940, 1170), new Vector2(700, 1380), new Vector2(930, 1590) },
+                2 => new[] { new Vector2(760, 1030), new Vector2(890, 1400) },
+                3 => new[] { new Vector2(770, 990), new Vector2(900, 1230), new Vector2(720, 1440) },
+                _ => new[] { new Vector2(760, 950), new Vector2(940, 1140), new Vector2(700, 1320), new Vector2(920, 1500) },
             };
             var ordered = new List<Unit>(mgr.Enemies);
             ordered.Sort((a, b) => (SizeOf(b).x * SizeOf(b).y).CompareTo(SizeOf(a).x * SizeOf(a).y));
