@@ -63,7 +63,7 @@ namespace Tanker
             ["title.name"] = new[] { "탱 커", "T A N K E R" },
             ["title.sub"] = new[] { "공격 스킬은 없다. 팀은 내가 지킨다.", "No attack skills. I protect the team." },
             ["title.start"] = new[] { "던전에 들어간다", "Enter the Dungeon" },
-            ["title.ver"] = new[] { "v0.7 — 유물과 각성", "v0.7 — Relics & Awakening" },
+            ["title.ver"] = new[] { "v0.8 — 심연의 왕", "v0.8 — King of the Abyss" },
             ["title.lang"] = new[] { "English", "한국어" },
 
             // 설정 오버레이

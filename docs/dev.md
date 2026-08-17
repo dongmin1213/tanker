@@ -74,6 +74,8 @@ python3 tools/mcp_unity.py call Unity_GetConsoleLogs '{}'
 - **왜 이 조합인가 (삽질 기록)**:
   - Xcode 계정 세션은 만료돼 있으면 CLI가 `Failed to Use Accounts`로 실패 → 세션 무관한 **ASC API 키**를 쓴다 (조선 퇴마 때 만든 키 재사용).
   - API 키로는 Xcode 클라우드 서명이 안 됨(`Cloud signing permission error`) → **배포 프로파일을 ASC API로 직접 생성**
-    (POST /v1/profiles, IOS_APP_STORE, 스크립트는 세션 스크래치의 make_profile.py 참고) 후 수동 서명.
+    (`tools/asc_make_profile.py`, exportOptions는 `tools/export-appstore.plist`) 후 수동 서명.
   - App ID 등록·ASC 앱 레코드 생성은 웹에서 1회 완료됨 (앱: "탱커 : 방패 원정대", SKU tanker-001).
-- 다음 업로드부터는 버전/빌드번호 올리고(1→2) 1·3·4만 반복하면 된다.
+- 다음 업로드 절차: ① `TankerEditorTools.BuildIos()`의 bundleVersion/buildNumber와 `Loc`의 `title.ver`를 올리고
+  ② 위 1·3·4 반복 ③ ASC API로 처리 상태 폴링(processingState VALID까지, 보통 5~10분) — 내부 그룹에 자동 배포됨.
+  (빌드 1~7까지 이 절차로 업로드 완료, 전부 VALID.)

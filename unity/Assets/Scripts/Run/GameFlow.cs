@@ -218,7 +218,7 @@ namespace Tanker
             var stripBtn = strip.gameObject.AddComponent<Button>();
             stripBtn.transition = Selectable.Transition.None;
             stripBtn.onClick.AddListener(() => { AudioKit.Click(); StatusUI.Open(run); });
-            UiKit.Label("stripHint", screen, new Vector2(430, 692), new Vector2(200, 30),
+            UiKit.Label("stripHint", screen, new Vector2(388, 690), new Vector2(190, 30),
                 Loc.T("status.tap"), 19, UiKit.Hex("8f86ad"), TextAnchor.MiddleRight, center: true);
             int count = 1 + run.Party.Count;
             float step = Mathf.Min(190f, 880f / count);

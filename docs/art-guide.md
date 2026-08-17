@@ -73,15 +73,44 @@ character centered in each cell, occupying about 80% of cell height, square canv
 | bat-attack | 흡혈 박쥐 공격 원샷 | `purple vampire bat lunging with bared fangs, swoop and bite across the 4 frames` |
 | necro-idle | 네크로맨서 idle 루프 (v0.5) | `necromancer in a ragged dark robe holding a skull-topped staff, hunched idle with faint green wisps across the 4 frames` (시그니처: 녹색 사령술) |
 | necro-cast | 네크로맨서 주문 원샷 | `necromancer raising a skull-topped staff casting green necrotic mending magic, gather to release across the 4 frames` |
+| warden-idle | 문지기 idle 루프 (v0.7) | `heavily armored gate warden with a massive tower shield and flanged mace, immovable guarding stance, subtle breathing idle across the 4 frames` (시그니처: 회청색 갑옷) |
+| warden-attack | 문지기 공격 원샷 | `heavily armored gate warden bashing forward with tower shield and mace, brace to slam across the 4 frames` |
+| shadow-idle | 그림자 idle 루프 (v0.7) | `smoky black silhouette assassin, half-dissolved wispy edges, low coiled stance, purple afterimage trails across the 4 frames` (시그니처: 보라 잔상) |
+| shadow-attack | 그림자 공격 원샷 | `smoky black silhouette assassin blink-striking with a shadow blade, teleport slash with purple afterimages across the 4 frames` |
+| chief-idle | 고블린 대장 idle 루프 (v0.7) | `goblin chieftain larger than common goblins, feathered helmet and a command banner, barking orders idle across the 4 frames` (시그니처: 깃털 투구+깃발) |
+| chief-attack | 고블린 대장 공격 원샷 | `goblin chieftain roaring and swinging his command banner overhead, rally to strike across the 4 frames` |
+| bomber-idle | 고블린 폭탄꾼 idle 루프 (v0.7) | `goblin bomber carrying a huge round bomb keg on his back, lit fuse sparking, nervous fidgety idle across the 4 frames` (시그니처: 도화선 불꽃) |
+| bomber-attack | 폭탄꾼 공격 원샷 | `goblin bomber hoisting the sparking bomb overhead about to throw, lift to hurl across the 4 frames` |
+| thief-idle | 도굴꾼 idle 루프 (v0.7) | `hooded goblin grave robber with a loot sack leaking gold coins, shifty crouched idle across the 4 frames` (시그니처: 금화 자루) |
+| thief-attack | 도굴꾼 공격 원샷 | `hooded goblin grave robber snatching with a quick grabbing lunge, coins scattering across the 4 frames` |
+| skeleton-idle | 해골 방패병 idle 루프 (v0.8) | `skeletal soldier holding a large square shield raised in front, defensive stance, rattling idle across the 4 frames` (시그니처: 큰 사각 방패) |
+| skeleton-attack | 해골 방패병 공격 원샷 | `skeletal soldier bashing forward with his large square shield, brace to shove across the 4 frames` |
+| wolf-idle | 던전 늑대 idle 루프 (v0.8) | `ash-grey feral dungeon wolf, low prowling four-legged silhouette, hackles raised idle across the 4 frames` (시그니처: 잿빛) |
+| wolf-attack | 던전 늑대 공격 원샷 | `ash-grey feral dungeon wolf leaping in a lunging bite, pounce to snap across the 4 frames` |
+| mimic-idle | 미믹 idle 루프 (v0.8) | `treasure chest mimic monster disguised as a wooden chest with gold trim, lid slightly ajar showing teeth, subtle breathing idle across the 4 frames` (icon-chest와 같은 상자 디자인 기반) |
+| mimic-attack | 미믹 공격 원샷 | `treasure chest mimic bursting open with fangs and a long tongue, lunging chomp across the 4 frames` |
+| armor-idle | 저주받은 갑옷 idle 루프 (v0.8) | `hollow haunted suit of plate armor floating slightly above ground, glowing purple eyes in an empty helm, hovering idle across the 4 frames` (시그니처: 보라 안광) |
+| armor-attack | 저주받은 갑옷 공격 원샷 | `hollow haunted suit of plate armor swinging a greatsword in a heavy arc, wind-up to slash across the 4 frames` |
+| lich-idle | 최종 보스 리치 왕 idle 루프 (v0.8) | `crowned skeletal lich king archmage in purple and green robes, floating, staff with green soulfire, towering presence filling 90% of each cell, hovering idle across the 4 frames` (시그니처: 왕관+녹색 사령술 — boss-idle보다 크고 위압적) |
+| lich-attack | 리치 왕 강타 원샷 | `crowned skeletal lich king striking with his soulfire staff, gather to smite across the 4 frames` |
+| lich-cast | 리치 왕 사령 폭풍 원샷 | `crowned skeletal lich king unleashing a swirling green necrotic storm from raised arms, gather to eruption across the 4 frames` |
 
 ## 비캐릭터 에셋
 
 - **배경(던전)** `bg-dungeon`: 시트 아님, 단일 이미지 1024×1536(세로).
   `16-bit pixel art dungeon interior, dark stone walls and floor, torch light, muted low-contrast tones, empty middle ground for characters, mobile portrait composition` — 캐릭터보다 명도/채도를 확 낮춰서 유닛이 뜨게.
-- **UI 프레임** (시트 아님, 단일 1024×1024, 마젠타 배경, 후처리 128×128 → 코드에서 9-slice):
-  - `ui-panel`: `16-bit pixel art square UI panel frame for a dark fantasy game, dark blue-purple stone border with subtle gold rivets, solid very dark center fill, flat design, thick even border, flat solid magenta background (#FF00FF) outside the panel, no text`
-  - `ui-button`: `16-bit pixel art square UI button frame for a dark fantasy game, dark stone with thin gold trim border, solid dark center fill, flat design, thick even border, flat solid magenta background (#FF00FF) outside the button, no text`
-- **UI 아이콘/HP바/데미지 숫자**: 에셋 아님. 코드로 렌더.
+- **UI 프레임** (시트 아님, 단일 1024×1024, 마젠타 배경, 후처리 128 + **PIL bbox 크롭** → 코드에서 9-slice).
+  **v0.8 재톤 확정 — 보라 금지, 던전 배경(bg-dungeon)의 회갈색 돌과 어울리는 돌+금 팔레트가 최우선**:
+  - `ui-panel`: 어두운 돌(회갈색) + 청동/금 모서리 장식 정사각 프레임, 내부 아주 어두운 갈회색 단색, 균일한 테두리 두께
+  - `ui-button`: 짙은 철 + 금 테두리 가로 프레임, 내부 어두운 갈색
+  - `ui-card`: 낡은 양피지 테두리 + 금 모서리 장식 세로 카드 프레임, 내부 짙은 갈회색
+  - `card-back`: ui-card와 같은 비율 카드 뒷면 — 갈색 가죽 바탕 + 금 방패 엠블럼
+  - **주의**: 생성물의 투명 여백은 9-slice를 깨뜨린다 — 후처리에서 반드시 알파 bbox로 크롭할 것 (후처리 절 참조).
+- **노드 아이콘** (v0.6~, 단일 1024×1024 마젠타 배경, 12색 이하): `icon-battle` 교차된 두 검 /
+  `icon-elite` 뿔 달린 해골 왕관(붉은 눈) / `icon-trap` 바닥 가시 / `icon-rest` 모닥불(주황 불꽃) /
+  `icon-shop` 저울·금화 / `icon-chest` 보물상자. 후처리: 128로 pixelize 후 **2×2 타일 복제해 256×256으로 저장**
+  (`UiKit.LoadSheet`가 2×2 시트를 기대하기 때문 — 4프레임 동일 이미지면 정지 아이콘이 된다).
+- **UI 아이콘(기타)/HP바/데미지 숫자**: 에셋 아님. 코드로 렌더.
 
 ## 후처리 파이프라인 (Claude 담당, 스크립트로 자동화)
 
@@ -91,9 +120,11 @@ AI가 뽑는 "픽셀 아트"는 픽셀 그리드가 어긋나 있으므로 원�
    (256×256 = 프레임당 128×128. `--align bottom`이 셀마다 실루엣을 **하단 중앙 기준으로 정렬**해
    프레임 간 좌표 지터를 없앤다 — AI 생성 시트는 셀마다 캐릭터 위치가 어긋나 있음)
 2. FX 시트: `--align center` (버스트는 중앙 기준 정렬)
-3. UI 프레임: `-s 128` 단일 이미지 (정렬 없음)
-4. 배경: PIL nearest 다운스케일 216×384 + 16색 양자화 (마젠타 키잉 없음) → `unity/Assets/Resources/Art/bg-dungeon.png`
-5. 원본은 레포 밖(스크래치)에 보관, 커밋 금지.
+3. UI 프레임: `-s 128` 단일 이미지 (정렬 없음) → **PIL `getbbox()`로 투명 여백 크롭** 후 저장
+   (여백이 남으면 9-slice 테두리가 안쪽으로 밀려 프레임이 사라져 보인다 — v0.8 재톤에서 실증)
+4. 노드 아이콘: `-s 128` → 2×2 타일 복제 256×256 (비캐릭터 절 참조)
+5. 배경: PIL nearest 다운스케일 216×384 + 16색 양자화 (마젠타 키잉 없음) → `unity/Assets/Resources/Art/bg-dungeon.png`
+6. 원본은 레포 밖(스크래치)에 보관, 커밋 금지.
 
 Unity 임포트: `Assets/Resources/Art/` 이하는 `TankerArtImport.cs`(AssetPostprocessor)가
 Point filter · 압축 없음 · PPU 128을 자동 강제한다. 시트 슬라이스는 임포터가 아니라
