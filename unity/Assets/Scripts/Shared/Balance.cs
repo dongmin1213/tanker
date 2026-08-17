@@ -34,7 +34,7 @@ namespace Tanker
 
         public int battleGold = 40;
         public int eliteGold = 40;
-        public float restRatio = 0.25f;
+        public float restRatio = 0.3f;
         public int trapTankCost = 6;
         public int trapToll = 20;
         public int trapDpsCost = 4;
@@ -147,7 +147,7 @@ namespace Tanker
         public int killGold = 3;           // 도적: 처치 시 골드
         public int novaEvery = 3;          // 마법사: N턴마다 전체 광역 (각 절반 피해)
         public int devourHeal = 3;         // 수인: 처치 시 자가 회복
-        public int paladinTankHealPlus = 0; // (예약)
+        
 
         // v0.7 — 이벤트·기타
         public int altarHpCost = 6;        // 수상한 제단: 탱커 HP를 바치고 유물
@@ -174,7 +174,7 @@ namespace Tanker
         public int bracePrice = 40;
         public int braceValue = 2;
         public int potionPrice = 30;
-        public int potionHeal = 15;
+        public int potionHeal = 20;
 
         static Balance i;
         public static Balance I => i ?? (i = Load());

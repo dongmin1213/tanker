@@ -19,7 +19,8 @@ namespace Tanker
 
         static void Build()
         {
-            if (openCanvas != null) Object.Destroy(openCanvas);
+            // Destroy는 프레임 끝 처리 — 즉시 비활성화로 같은 프레임 멀티탭의 고아 캔버스 방지
+            if (openCanvas != null) { openCanvas.SetActive(false); Object.Destroy(openCanvas); }
             var frame = UiKit.MakeCanvas("HelpCanvas", 95);
             openCanvas = frame.parent.gameObject;
 

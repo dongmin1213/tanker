@@ -47,6 +47,11 @@ namespace Tanker
         public int BattlesWon;
         public int BattleIndex;               // 전투 순번 (통계)
 
+        // 승리 직후 미수령 보상 체크포인트 — 보상 화면에서 앱이 죽어도 전투를 다시 시키지 않는다
+        public int Pending;                   // 0=없음 1=카드 보상 2=엘리트 유물 3=심층 선택
+        public int PendingGold;               // 보물방 골드 (보상 화면 문구용)
+        public bool PendingTreasure;          // 보물방 보상 여부
+
         public static int TankMax => Balance.I.tankHp; // 기본 최대 (유물 미반영 — 표시는 TankMaxHp 사용)
         public int TankMaxHp => Balance.I.tankHp + (Has(RelicId.IronHeart) ? Balance.I.relicIronHeart : 0);
 
@@ -102,9 +107,10 @@ namespace Tanker
             Map = RunData.GenerateMap(new System.Random(seed * 613 + 101));
         }
 
-        public void RestAll(float ratio)
+        /// camp=true(휴식 방)일 때만 물주머니 보너스 — 심층 진입 재정비 등엔 미적용
+        public void RestAll(float ratio, bool camp = true)
         {
-            if (Has(RelicId.WaterSkin)) ratio += Balance.I.relicWaterSkin;
+            if (camp && Has(RelicId.WaterSkin)) ratio += Balance.I.relicWaterSkin;
             TankHp = System.Math.Min(TankMaxHp, TankHp + (int)(TankMaxHp * ratio));
             for (int i = 0; i < Party.Count; i++)
             {
@@ -116,12 +122,16 @@ namespace Tanker
     }
 
     /// 런 자동 저장 — 노드 완료마다 저장, 타이틀 "이어하기" (모바일 중단 대응)
+    /// 저장·삭제는 즉시 디스크 플러시 — 모바일은 정상 종료 콜백을 보장하지 않는다.
     public static class RunSave
     {
         const string Key = "run.save";
 
-        public static void Save(RunState run) =>
+        public static void Save(RunState run)
+        {
             UnityEngine.PlayerPrefs.SetString(Key, UnityEngine.JsonUtility.ToJson(run));
+            UnityEngine.PlayerPrefs.Save();
+        }
 
         public static bool Has() => UnityEngine.PlayerPrefs.HasKey(Key);
 
@@ -130,12 +140,29 @@ namespace Tanker
             try
             {
                 var run = UnityEngine.JsonUtility.FromJson<RunState>(UnityEngine.PlayerPrefs.GetString(Key));
-                return run != null && run.Map != null && run.Map.Count > 0 ? run : null;
+                return Valid(run) ? run : null;
             }
             catch { return null; }
         }
 
-        public static void Clear() => UnityEngine.PlayerPrefs.DeleteKey(Key);
+        /// 잘린/구버전 저장이 인덱스 예외로 터지지 않게 — 무결성이 깨졌으면 이어하기를 막는다
+        static bool Valid(RunState r)
+        {
+            if (r == null || r.Map == null || r.Map.Count == 0) return false;
+            if (r.Cur < -1 || r.Cur >= r.Map.Count) return false;
+            if (r.Party == null || r.PartyHp == null || r.Party.Count != r.PartyHp.Count) return false;
+            if (r.Deck == null || r.Deck.Count == 0 || r.Relics == null || r.Visited == null) return false;
+            if (r.Act < 0 || r.TankHp <= 0) return false;
+            foreach (var n in r.Map)
+                if (n == null || n.Next == null) return false;
+            return true;
+        }
+
+        public static void Clear()
+        {
+            UnityEngine.PlayerPrefs.DeleteKey(Key);
+            UnityEngine.PlayerPrefs.Save();
+        }
     }
 
     public class UnitDef
@@ -155,7 +182,9 @@ namespace Tanker
 
     public class EncounterDef
     {
-        public string Title;   // 적 구성에서 생성한 전투 이름 ("고블린 무리", "오크의 습격" 등)
+        public string Title;      // 적 구성에서 생성한 전투 이름 ("고블린 무리", "오크의 습격" 등)
+        public string TitleKey;   // 언어 전환 시 재번역용 레시피 — 포맷 키 (+선택 유닛 키)
+        public string TitleArgKey;
         public int Gold;
         public UnitDef[] Units;
     }
@@ -299,8 +328,9 @@ namespace Tanker
             };
         }
 
-        /// 적 구성에서 전투 이름 생성 — "고블린 무리"(같은 종 다수) / "오크의 습격"(최고 코스트 대표) / 정예 접두
-        static string EncounterTitle(List<EnemyPick> picked, bool elite)
+        /// 적 구성에서 전투 이름 레시피 — "고블린 무리"(같은 종 다수) / "오크의 습격"(최고 코스트 대표) / 정예 접두.
+        /// 키를 반환해 언어 전환 시 재번역 가능하게 한다.
+        static void EncounterTitleKeys(List<EnemyPick> picked, bool elite, out string key, out string arg)
         {
             var lead = picked[0];
             bool allSame = true;
@@ -309,9 +339,9 @@ namespace Tanker
                 if (p.Cost > lead.Cost) lead = p;
                 if (p.Key != picked[0].Key) allSame = false;
             }
-            if (elite) return Loc.F("enc.eliteAmbush", Loc.T(lead.Key));
-            if (allSame && picked.Count > 1) return Loc.F("enc.pack", Loc.T(picked[0].Key));
-            return Loc.F("enc.ambush", Loc.T(lead.Key));
+            if (elite) { key = "enc.eliteAmbush"; arg = lead.Key; }
+            else if (allSame && picked.Count > 1) { key = "enc.pack"; arg = picked[0].Key; }
+            else { key = "enc.ambush"; arg = lead.Key; }
         }
 
         /// 도감용 적 목록 — 풀 전체 + 보스 2종, 시트 기준 중복 제거 (v0.8)
@@ -353,6 +383,7 @@ namespace Tanker
                     return new EncounterDef
                     {
                         Title = Loc.T("enc.lich"),
+                        TitleKey = "enc.lich",
                         Gold = 0,
                         Units = new[]
                         {
@@ -364,6 +395,7 @@ namespace Tanker
                 return new EncounterDef
                 {
                     Title = Loc.T("enc.warlord"),
+                    TitleKey = "enc.warlord",
                     Gold = 0,
                     Units = new[]
                     {
@@ -403,9 +435,12 @@ namespace Tanker
                                        thorns: p.Thorns, lifesteal: p.Lifesteal, aura: p.Aura,
                                        selfShield: p.SelfShield, pack: p.Pack, bountyGold: p.BountyGold, damageCap: p.DamageCap);
             }
+            EncounterTitleKeys(picked, elite, out var tKey, out var tArg);
             return new EncounterDef
             {
-                Title = EncounterTitle(picked, elite),
+                Title = Loc.F(tKey, Loc.T(tArg)),
+                TitleKey = tKey,
+                TitleArgKey = tArg,
                 Gold = elite ? b.eliteGold : b.battleGold,
                 Units = units,
             };

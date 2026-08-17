@@ -40,6 +40,7 @@ namespace Tanker
     public class Unit
     {
         public string Name;
+        public string NameKey;   // 언어 전환 시 재번역용 Loc 키
         public string Sheet;     // 스프라이트 시트 키
         public Team Team;
         public Role Role;

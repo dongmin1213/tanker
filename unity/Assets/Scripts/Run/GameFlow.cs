@@ -55,11 +55,15 @@ namespace Tanker
 
         void Background(float dim)
         {
-            var tex = Resources.Load<Texture2D>("Art/bg-dungeon");
-            if (tex != null)
+            if (bgCache == null)
             {
-                if (bgCache == null)
+                // Resources.Load는 캐시가 없을 때 1회만 — 화면 전환마다 반복 로드 금지 규약
+                var tex = Resources.Load<Texture2D>("Art/bg-dungeon");
+                if (tex != null)
                     bgCache = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 128f);
+            }
+            if (bgCache != null)
+            {
                 var bg = UiKit.Panel("bg", screen, Vector2.zero, new Vector2(1350, 2400), Color.white, center: true);
                 bg.sprite = bgCache; bg.raycastTarget = false;
             }
@@ -149,7 +153,13 @@ namespace Tanker
             run = loaded;
             shop = RunData.MakeShop();
             Debug.Log("[Flow] 이어하기 — 시드 " + run.Seed + ", 층 " + run.FloorReached);
-            ShowMap();
+            switch (run.Pending)
+            {
+                case 1: ShowCardRewardInner(run.PendingTreasure, run.PendingGold); break; // 미수령 카드 보상부터
+                case 2: ShowRelicGain(); break;                                           // 엘리트 유물부터
+                case 3: ShowDescend(); break;                                             // 심층 선택부터
+                default: ShowMap(); break;
+            }
         }
 
         // ---------- 파티 소개 ----------
@@ -223,7 +233,7 @@ namespace Tanker
             int count = 1 + run.Party.Count;
             float step = Mathf.Min(190f, 880f / count);
             float x0 = -(count - 1) * step / 2f;
-            DrawMiniAlly(x0, 638, "tank", Loc.T("unit.tank"), run.TankHp, RunState.TankMax);
+            DrawMiniAlly(x0, 638, "tank", Loc.T("unit.tank"), run.TankHp, run.TankMaxHp); // 강철 심장 반영 최대치
             for (int i = 0; i < run.Party.Count; i++)
             {
                 var cd = RunData.Class(run.Party[i]);
@@ -280,11 +290,12 @@ namespace Tanker
         }
 
         /// 전용 아이콘 우선, 도착 전엔 유닛 시트 폴백 (전용 아이콘 = 종류 즉시 식별 — 크리틱 반영)
-        static string[] NodeSheets(NodeType t) => t switch
+        static string[] NodeSheets(NodeType t, int act) => t switch
         {
             NodeType.Battle => new[] { "icon-battle", "goblin-idle" },
             NodeType.Elite => new[] { "icon-elite", "brute-idle" },
-            NodeType.Boss => new[] { "boss-idle" },
+            NodeType.Boss => new[] { act >= 1 ? "lich-idle" : "boss-idle" }, // 2막 보스는 리치 왕
+
             NodeType.Event => new[] { "icon-trap", "spider-idle" },
             NodeType.Rest => new[] { "icon-rest", "fx-heal" },
             NodeType.Shop => new[] { "icon-shop" },
@@ -321,7 +332,7 @@ namespace Tanker
 
             float iconAlpha = done ? 0.3f : canGo || now ? 1f : 0.55f;
             Sprite[] frames = null;
-            foreach (var key in NodeSheets(n.Type))
+            foreach (var key in NodeSheets(n.Type, run.Act))
                 if ((frames = UiKit.LoadSheet(key)) != null) break;
             if (frames != null)
             {
@@ -371,7 +382,7 @@ namespace Tanker
                     break;
                 case NodeType.Event:
                     // 이벤트 3종 — 시드 결정: 가시 함정 / 수상한 제단 / 떠돌이 학자 (v0.7 탐험 다양화)
-                    switch (new System.Random(run.Seed * 389 + run.Cur * 53).Next(3))
+                    switch (new System.Random(run.Seed * 389 + run.Act * 4099 + run.Cur * 53).Next(3)) // 막마다 다른 스트림
                     {
                         case 0: ShowEvent(); break;
                         case 1: ShowAltar(); break;
@@ -380,9 +391,7 @@ namespace Tanker
                     break;
                 case NodeType.Rest: ShowRest(); break;
                 case NodeType.Shop:
-                    shop = RunData.MakeShop(); // 상점마다 새 재고
-                    if (run.Has(RelicId.MerchantSeal))
-                        foreach (var it in shop) it.Price = Mathf.RoundToInt(it.Price * (1f - Balance.I.relicMerchantSeal));
+                    shop = RunData.MakeShop(); // 상점마다 새 재고 — 할인은 표시/구매 시점에 계산 (인장 즉시 반영)
                     shopRelic = RandomNewRelic();
                     shopRelicSold = false;
                     ShowShop();
@@ -393,6 +402,7 @@ namespace Tanker
 
         void Advance()
         {
+            run.Pending = 0; run.PendingTreasure = false; run.PendingGold = 0; // 보상 수령 완료
             RunSave.Save(run); // 방 완료마다 자동 저장 — 중단해도 이어하기 (모바일 필수)
             ShowMap();
         }
@@ -403,6 +413,9 @@ namespace Tanker
         {
             int got = Balance.I.treasureGold;
             run.Gold += got;
+            // 골드 지급 즉시 체크포인트 — 보상 화면에서 중단해도 골드 소실·중복 지급 없음
+            run.Pending = 1; run.PendingTreasure = true; run.PendingGold = got;
+            RunSave.Save(run);
             ShowCardRewardInner(true, got);
         }
 
@@ -425,10 +438,11 @@ namespace Tanker
             UiKit.Btn("descend", screen, new Vector2(0, -90), new Vector2(860, 130), Loc.T("descend.go"), () =>
             {
                 run.Act = 1;
-                run.RestAll(Balance.I.descendHeal); // 심층 진입 전 재정비
+                run.RestAll(Balance.I.descendHeal, camp: false); // 심층 진입 재정비 — 물주머니 미적용
                 run.Map = RunData.GenerateMap(new System.Random(run.Seed * 777 + 13));
                 run.Cur = -1;
                 run.Visited.Clear();
+                run.Pending = 0;
                 RunSave.Save(run);
                 ShowMap();
             }, 33, center: true);
@@ -444,7 +458,7 @@ namespace Tanker
             foreach (RelicId r in System.Enum.GetValues(typeof(RelicId)))
                 if (!run.Has(r)) pool.Add(r);
             if (pool.Count == 0) return null;
-            var rng = new System.Random(run.Seed * 263 + run.Cur * 31);
+            var rng = new System.Random(run.Seed * 263 + run.Act * 5407 + run.Cur * 31); // 막마다 다른 스트림
             return pool[rng.Next(pool.Count)];
         }
 
@@ -452,8 +466,11 @@ namespace Tanker
         public void ShowRelicGain()
         {
             var pick = RandomNewRelic();
-            if (pick == null) { run.Gold += Balance.I.relicDupGold; ShowCardReward(); return; }
+            if (pick == null) { run.Gold += Balance.I.relicDupGold; run.Pending = 1; RunSave.Save(run); ShowCardReward(); return; }
             run.AddRelic(pick.Value);
+            // 획득 즉시 체크포인트 — 유물 화면에서 중단해도 같은 유물이 두 번 나오지 않는다
+            run.Pending = 1;
+            RunSave.Save(run);
             ShowRelicScreen(pick.Value, () => ShowCardReward());
         }
 
@@ -524,8 +541,14 @@ namespace Tanker
             bool wasElite = run.CurNode.Type == NodeType.Elite;
             Destroy(battleGo);
             battleGo = null;
-            if (!won) ShowEnding(false);
-            else if (wasBoss && run.Act == 0) ShowDescend(); // 1막 보스 격파 — 귀환/심층 선택 (v0.8)
+            if (!won) { ShowEnding(false); return; }
+            // 승리 즉시 체크포인트 — 보상 화면에서 중단해도 전투 재플레이 없이 보상부터 이어한다
+            if (wasBoss && run.Act == 0) run.Pending = 3;
+            else if (wasBoss) run.Pending = 0;               // 진엔딩 직행 — 엔딩이 저장을 지운다
+            else run.Pending = wasElite ? 2 : 1;
+            run.PendingTreasure = false; run.PendingGold = 0;
+            if (!wasBoss || run.Act == 0) RunSave.Save(run);
+            if (wasBoss && run.Act == 0) ShowDescend();      // 1막 보스 격파 — 귀환/심층 선택 (v0.8)
             else if (wasBoss) ShowEnding(true);              // 리치 격파 — 진엔딩
             else if (wasElite) ShowRelicGain();              // 엘리트 — 유물 확정 보상 후 카드 보상
             else ShowCardReward();
@@ -546,7 +569,7 @@ namespace Tanker
             UiKit.Label("desc", screen, new Vector2(0, 530), new Vector2(920, 50),
                 treasure ? Loc.F("treasure.desc", gold) : Loc.T("reward.desc"), 30, UiKit.Hex("cfc8e8"), center: true);
 
-            var rng = new System.Random(run.Seed * 397 + run.Cur * 71);
+            var rng = new System.Random(run.Seed * 397 + run.Act * 6421 + run.Cur * 71); // 막마다 다른 스트림
             var offered = new List<CardType>();
             var pool = new List<CardType>(Cards.Pool);
             for (int i = 0; i < 3 && pool.Count > 0; i++)
@@ -580,6 +603,9 @@ namespace Tanker
                     var pick = RandomNewRelic();
                     if (pick == null) { Advance(); return; }
                     run.AddRelic(pick.Value);
+                    // 선택 즉시 보상 소진 저장 — 유물 화면에서 중단 후 재선택으로 유물 파밍 방지
+                    run.Pending = 0; run.PendingTreasure = false; run.PendingGold = 0;
+                    RunSave.Save(run);
                     ShowRelicScreen(pick.Value, () => Advance());
                 }, 32, center: true);
 
@@ -799,6 +825,10 @@ namespace Tanker
             UiKit.Btn("go", screen, new Vector2(0, -330), new Vector2(520, 130), Loc.T("rest.go"), () => Advance(), 44, center: true);
         }
 
+        /// 모든 상점 가격의 단일 계산점 — 상인 인장은 매물·카드 제거·유물 전부, 구매 직후에도 즉시 적용
+        int ShopPrice(int basePrice) => Mathf.RoundToInt(basePrice
+            * (run.Has(RelicId.MerchantSeal) ? 1f - Balance.I.relicMerchantSeal : 1f));
+
         public void ShowShop()
         {
             currentScreen = ShowShop;
@@ -813,25 +843,25 @@ namespace Tanker
             for (int i = 0; i < shop.Count; i++)
             {
                 var item = shop[i];
+                int price = ShopPrice(item.Price);
                 float y = 452 - i * 130;
                 string label = item.Bought ? Loc.F("shop.soldout", item.Name)
-                    : Loc.F("shop.item", item.Name, item.Price, item.Desc);
+                    : Loc.F("shop.item", item.Name, price, item.Desc);
                 var btn = UiKit.Btn("item" + i, screen, new Vector2(0, y), new Vector2(880, 118), label, () =>
                 {
-                    if (item.Bought || run.Gold < item.Price) return;
-                    run.Gold -= item.Price;
+                    if (item.Bought || run.Gold < price) return;
+                    run.Gold -= price;
                     item.Bought = true;
                     item.Apply(run);
                     ShowShop();
                 }, 30, center: true);
-                btn.interactable = !item.Bought && run.Gold >= item.Price;
+                btn.interactable = !item.Bought && run.Gold >= price;
             }
 
             // 유물 매물 (v0.7)
             if (shopRelic != null)
             {
-                int rPrice = Mathf.RoundToInt(Balance.I.relicPrice
-                    * (run.Has(RelicId.MerchantSeal) ? 1f - Balance.I.relicMerchantSeal : 1f));
+                int rPrice = ShopPrice(Balance.I.relicPrice);
                 string rLabel = shopRelicSold ? Loc.F("shop.soldout", Loc.T("relic." + shopRelic.Value))
                     : Loc.F("shop.relic", Loc.T("relic." + shopRelic.Value), rPrice, RelicDesc(shopRelic.Value));
                 var rBtn = UiKit.Btn("relicItem", screen, new Vector2(0, -60), new Vector2(880, 118), rLabel, () =>
@@ -846,8 +876,8 @@ namespace Tanker
             }
 
             var removeBtn = UiKit.Btn("removeCard", screen, new Vector2(0, -200), new Vector2(880, 110),
-                Loc.F("shop.remove", Balance.I.cardRemovePrice), () => ShowRemoveCard(), 30, center: true);
-            removeBtn.interactable = run.Gold >= Balance.I.cardRemovePrice && run.Deck.Count > 1;
+                Loc.F("shop.remove", ShopPrice(Balance.I.cardRemovePrice)), () => ShowRemoveCard(), 30, center: true);
+            removeBtn.interactable = run.Gold >= ShopPrice(Balance.I.cardRemovePrice) && run.Deck.Count > 1;
 
             UiKit.Btn("leave", screen, new Vector2(0, -400), new Vector2(520, 110), Loc.T("shop.leave"), () => Advance(), 36, center: true);
         }
@@ -862,7 +892,7 @@ namespace Tanker
             Gear();
             Banner(Loc.T("remove.h1"), 700);
             UiKit.Label("desc", screen, new Vector2(0, 590), new Vector2(920, 44),
-                Loc.F("remove.desc", Balance.I.cardRemovePrice), 28, UiKit.Hex("cfc8e8"), center: true);
+                Loc.F("remove.desc", ShopPrice(Balance.I.cardRemovePrice)), 28, UiKit.Hex("cfc8e8"), center: true);
 
             for (int i = 0; i < run.Deck.Count && i < 10; i++)
             {
@@ -872,8 +902,9 @@ namespace Tanker
                 UiKit.Btn("deck" + i, screen, new Vector2(x, y), new Vector2(420, 110),
                     Cards.NameOf(run.Deck[i]), () =>
                     {
-                        if (run.Gold < Balance.I.cardRemovePrice || run.Deck.Count <= 1) return;
-                        run.Gold -= Balance.I.cardRemovePrice;
+                        int price = ShopPrice(Balance.I.cardRemovePrice);
+                        if (run.Gold < price || run.Deck.Count <= 1) return;
+                        run.Gold -= price;
                         run.Deck.RemoveAt(idx);
                         ShowShop();
                     }, 30, center: true);

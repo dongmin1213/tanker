@@ -15,7 +15,8 @@ namespace Tanker
             openCanvas = null;
         }
 
-        public static void Open(RunState run)
+        /// battle을 주면 파티 HP는 진행 중 전투의 실시간 값 — RunState는 승리 시점에만 갱신되므로
+        public static void Open(RunState run, BattleManager battle = null)
         {
             if (openCanvas != null || run == null) return;
             var frame = UiKit.MakeCanvas("StatusCanvas", 85);
@@ -39,11 +40,13 @@ namespace Tanker
             int count = 1 + run.Party.Count;
             float step = Mathf.Min(180f, 840f / count);
             float x0 = -(count - 1) * step / 2f;
-            DrawMini(frame, x0, top - 280, "tank", Loc.T("unit.tank"), run.TankHp, run.TankMaxHp);
+            int tankHp = battle != null ? battle.Tank.Hp : run.TankHp;
+            DrawMini(frame, x0, top - 280, "tank", Loc.T("unit.tank"), tankHp, run.TankMaxHp);
             for (int i = 0; i < run.Party.Count; i++)
             {
                 var cd = RunData.Class(run.Party[i]);
-                DrawMini(frame, x0 + (i + 1) * step, top - 280, cd.Sheet, Loc.T(cd.LocKey), run.PartyHp[i], cd.Hp);
+                int hp = battle != null && i + 1 < battle.Allies.Count ? battle.Allies[i + 1].Hp : run.PartyHp[i];
+                DrawMini(frame, x0 + (i + 1) * step, top - 280, cd.Sheet, Loc.T(cd.LocKey), hp, cd.Hp);
             }
 
             // 유물 목록

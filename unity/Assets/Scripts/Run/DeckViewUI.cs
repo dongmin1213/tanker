@@ -6,8 +6,11 @@ namespace Tanker
 {
     /// 내 덱 전체 열람 오버레이 — 종류별로 묶어 장수·짧은 설명을 보여준다.
     /// 전투·맵 어디서든 호출 가능 (전용 캔버스, 닫으면 파기).
+    /// 패널은 고정 높이 + 페이지 넘김 — 카드 변형이 많아져도 화면 밖으로 넘치지 않는다.
     public static class DeckViewUI
     {
+        const int PerPage = 8; // 2열 × 4행
+
         static GameObject openCanvas;
 
         /// 화면 전환 시 강제 닫기 — 전투가 끝나도 오버레이가 남는 것 방지
@@ -21,6 +24,12 @@ namespace Tanker
         public static void Open(List<Card> deck, int hand = -1, int draw = -1, int discard = -1)
         {
             if (openCanvas != null) return;
+            Build(deck, hand, draw, discard, 0);
+        }
+
+        static void Build(List<Card> deck, int hand, int draw, int discard, int page)
+        {
+            Close();
             var frame = UiKit.MakeCanvas("DeckViewCanvas", 85);
             var canvasGo = frame.parent.gameObject;
             openCanvas = canvasGo;
@@ -31,9 +40,12 @@ namespace Tanker
             // 종류·강화별 집계 (덱 순서 무관 — 셔플은 전투에서만 의미)
             var counts = new Dictionary<Card, int>();
             foreach (var c in deck) counts[c] = counts.TryGetValue(c, out var n) ? n + 1 : 1;
+            var groups = new List<KeyValuePair<Card, int>>(counts);
 
-            int rows = (counts.Count + 1) / 2;
-            float panelH = Mathf.Max(560, 330 + rows * 230);
+            int pages = Mathf.Max(1, (groups.Count + PerPage - 1) / PerPage);
+            page = Mathf.Clamp(page, 0, pages - 1);
+
+            const float panelH = 1360; // 고정 — 닫기 버튼이 항상 화면 안에 있다
             UiKit.FramedPanel("panel", frame, Vector2.zero, new Vector2(980, panelH), center: true);
             UiKit.Label("h1", frame, new Vector2(0, panelH / 2 - 85), new Vector2(860, 60),
                 Loc.F("deck.title", deck.Count), 44, Color.white, bold: true, center: true);
@@ -43,9 +55,11 @@ namespace Tanker
 
             // 2열 미니 카드 그리드 — 전투 카드와 같은 프레임으로 시각 연결 (크리틱 반영)
             float top = panelH / 2 - 200;
-            int i = 0;
-            foreach (var kv in counts)
+            int start = page * PerPage, end = Mathf.Min(groups.Count, start + PerPage);
+            for (int gi = start; gi < end; gi++)
             {
+                var kv = groups[gi];
+                int i = gi - start;
                 float x = i % 2 == 0 ? -225 : 225;
                 float y = top - i / 2 * 230 - 100;
                 var card = UiKit.Panel("card_" + kv.Key, frame, new Vector2(x, y), new Vector2(400, 215), Color.white, center: true);
@@ -55,11 +69,22 @@ namespace Tanker
                 UiKit.Label("ct_" + kv.Key, card.rectTransform, Vector2.zero, new Vector2(340, 190),
                     "<b>" + Cards.NameOf(kv.Key) + "  ×" + kv.Value + "</b>\n<size=22><color=#9a92b8>"
                     + Cards.DescOf(kv.Key) + "</color></size>", 28, Color.white, center: true);
-                i++;
+            }
+
+            if (pages > 1)
+            {
+                UiKit.Label("pg", frame, new Vector2(0, -panelH / 2 + 185), new Vector2(300, 40),
+                    (page + 1) + " / " + pages, 28, UiKit.Hex("9a92b8"), center: true);
+                if (page > 0)
+                    UiKit.Btn("prev", frame, new Vector2(-330, -panelH / 2 + 185), new Vector2(150, 90), "◀",
+                        () => Build(deck, hand, draw, discard, page - 1), 34, center: true);
+                if (page < pages - 1)
+                    UiKit.Btn("next", frame, new Vector2(330, -panelH / 2 + 185), new Vector2(150, 90), "▶",
+                        () => Build(deck, hand, draw, discard, page + 1), 34, center: true);
             }
 
             UiKit.Btn("close", frame, new Vector2(0, -panelH / 2 + 85), new Vector2(380, 100),
-                Loc.T("set.close"), () => Object.Destroy(canvasGo), 34, center: true);
+                Loc.T("set.close"), Close, 34, center: true);
         }
     }
 }

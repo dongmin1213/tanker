@@ -274,7 +274,7 @@ namespace Tanker
             ["card.Regroup.descPlus"] = new[] { "손패 유지 + 다음 턴 1장 더 드로우", "Keep hand + draw 1 extra next turn" },
             ["card.Regroup.s"] = new[] { "손패 유지", "Keep hand" },
             ["card.WarCry"] = new[] { "도발 함성", "War Cry" },
-            ["card.WarCry.desc"] = new[] { "적 전원이 1턴간 나만 공격", "All enemies attack only me for 1 turn" },
+            ["card.WarCry.desc"] = new[] { "적 전원이 1턴간 나만 공격 (폭탄은 못 막음)", "All enemies attack only me for 1 turn (can't stop bombs)" },
             ["card.WarCry.descPlus"] = new[] { "전원 도발 + 내 HP {0} 회복", "Taunt all + heal me {0}" },
             ["card.WarCry.s"] = new[] { "전원 도발", "Taunt all" },
             ["card.Cover.descPlus"] = new[] { "대신 맞고 그 피해 -{0}", "Intercept and take -{0} damage" },

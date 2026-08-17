@@ -27,14 +27,12 @@ namespace Tanker
             if (go != null) Object.Destroy(go);
         }
 
-        static int RowCount() => tab == 0
-            ? System.Enum.GetValues(typeof(ClassId)).Length
-            : tab == 1 ? RunData.EnemyCodex().Count
-            : System.Enum.GetValues(typeof(RelicId)).Length;
-
         static void Build()
         {
-            if (openCanvas != null) Object.Destroy(openCanvas);
+            // Destroy는 프레임 끝 처리 — 즉시 비활성화로 같은 프레임 멀티탭의 고아 캔버스 방지
+            if (openCanvas != null) { openCanvas.SetActive(false); Object.Destroy(openCanvas); }
+            // 적 목록은 페이지 빌드당 1회만 생성 (행마다 재생성 금지)
+            var enemies = tab == 1 ? RunData.EnemyCodex() : null;
             var frame = UiKit.MakeCanvas("CodexCanvas", 95);
             openCanvas = frame.parent.gameObject;
 
@@ -55,7 +53,9 @@ namespace Tanker
                 UiKit.SetSelected(btn, t == tab);
             }
 
-            int total = RowCount();
+            int total = tab == 0 ? System.Enum.GetValues(typeof(ClassId)).Length
+                : tab == 1 ? enemies.Count
+                : System.Enum.GetValues(typeof(RelicId)).Length;
             int maxPage = (total - 1) / PerPage;
             page = Mathf.Clamp(page, 0, maxPage);
             float top = 420;
@@ -66,7 +66,7 @@ namespace Tanker
                 if (idx >= total) break;
                 float y = top - i * 155 - 70;
                 if (tab == 0) DrawClassRow(frame, (ClassId)idx, y);
-                else if (tab == 1) DrawEnemyRow(frame, RunData.EnemyCodex()[idx], y);
+                else if (tab == 1) DrawEnemyRow(frame, enemies[idx], y);
                 else DrawRelicRow(frame, (RelicId)idx, y);
             }
 

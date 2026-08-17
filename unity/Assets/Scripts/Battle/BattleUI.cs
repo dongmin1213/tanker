@@ -22,7 +22,7 @@ namespace Tanker
         Text turnText, savedText, logText, drawText, discardText, deckViewText, planText, hintText, statusText;
         GameFlow flow;
 
-        /// 언어 전환 시 정적 라벨 리바인딩 — 유닛 이름만 다음 전투부터 적용 (유저 피드백)
+        /// 언어 전환 시 정적 라벨 리바인딩 — 유닛 이름·전투명도 즉시 재번역 (유저 피드백)
         public void RebindStatic()
         {
             if (goBtn != null) goBtn.GetComponentInChildren<Text>().text = Loc.T("skill.go");
@@ -30,6 +30,12 @@ namespace Tanker
             if (statusText != null) statusText.text = Loc.T("status.h1");
             if (deckViewText != null && flow != null) deckViewText.text = Loc.F("bt.deckView", flow.run.Deck.Count);
             if (resultPanel != null && resultPanel.activeSelf) SetResultTexts();
+            if (mgr != null)
+            {
+                mgr.RebindNames();
+                foreach (var kv in views)
+                    if (kv.Value.Name != null) kv.Value.Name.text = kv.Key.Name;
+            }
         }
         static Sprite cardBackCache;
         static bool cardBackTried;
@@ -234,7 +240,7 @@ namespace Tanker
             if (flowRef != null) deckViewText.text = Loc.F("bt.deckView", flowRef.run.Deck.Count);
             var statusBtn = UiKit.Btn("status", root, new Vector2(336, 572), new Vector2(180, 52), Loc.T("status.h1"), () =>
             {
-                if (flowRef != null) StatusUI.Open(flowRef.run);
+                if (flowRef != null) StatusUI.Open(flowRef.run, mgr); // 전투 중엔 실시간 HP
             }, 24); // 내 상태 — 유물·파티 열람 (v0.8)
             statusText = statusBtn.GetComponentInChildren<Text>();
             // 더미는 우상단 (유저 제안 — 하단 공간 확보)
@@ -269,7 +275,7 @@ namespace Tanker
 
             foreach (var e in mgr.Enemies)
             {
-                var pair = new RectTransform[4]; // 광역 최대 4명 + 거미 엄호 둘째 타까지 전부 시각화
+                var pair = new RectTransform[5]; // 리치 폭풍은 탱커 포함 최대 5수신 — 공격선 전부 시각화
                 for (int i = 0; i < pair.Length; i++)
                 {
                     var line = Rt("line_" + e.Name + i, stage, Vector2.zero, new Vector2(0, 6));
@@ -620,8 +626,9 @@ namespace Tanker
                 string parts = "";
                 foreach (var b in mgr.Allies)
                 {
-                    if (b.IsTank || !b.Alive) continue;
-                    bool covered = mgr.CoverPreview == b;
+                    if (!b.Alive) continue;
+                    if (b.IsTank && e.Ai != AiKind.LichBoss) continue; // 리치 폭풍만 탱커 포함 — 인텐트도 숨기지 않는다
+                    bool covered = !b.IsTank && mgr.CoverPreview == b;
                     var recv = covered ? mgr.Tank : b;
                     if (i < pair.Length)
                         DrawLine(pair[i], posOf[e], posOf[recv], covered ? Hex("ffd75e") : Hex("ff6b6b"));
