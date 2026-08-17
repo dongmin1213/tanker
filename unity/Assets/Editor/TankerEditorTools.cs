@@ -31,7 +31,7 @@ namespace Tanker
             PlayerSettings.productName = "Tanker";
             PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.iOS, "com.dongmin1213.tanker");
             PlayerSettings.bundleVersion = "0.9.0";
-            PlayerSettings.iOS.buildNumber = "12";
+            PlayerSettings.iOS.buildNumber = "13";
             PlayerSettings.iOS.appleDeveloperTeamID = "3N2543B2FD";
             PlayerSettings.iOS.appleEnableAutomaticSigning = true;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;

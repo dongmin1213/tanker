@@ -163,5 +163,7 @@
   "rowFrontBonus": 1,
   "rowBackPenalty": 1,
   "threatAuraBonus": 50,
-  "threatBombBonus": 120
+  "threatBombBonus": 120,
+  "formAtkBonus": 1,
+  "formGuardReduce": 1
 }

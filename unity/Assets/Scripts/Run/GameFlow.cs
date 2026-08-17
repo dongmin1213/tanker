@@ -187,15 +187,38 @@ namespace Tanker
                 UiKit.Label("noheal", screen, new Vector2(0, 596), new Vector2(980, 40),
                     Loc.T("party.noHealer"), 26, UiKit.Hex("e8895e"), center: true);
 
-            // 진형 안내 (v0.9) — 배치가 왜 중요한지 숨기지 않는다
-            UiKit.Label("rowHint", screen, new Vector2(0, 552), new Vector2(980, 40),
-                Loc.F("party.rowHint", Balance.I.rowFrontBonus, Balance.I.rowBackPenalty), 24, UiKit.Hex("9a92b8"), center: true);
+            // 진형 프리셋 (v0.9 — 세븐나이츠식): 선택하면 배치가 파생된다. 개별 토글 없음.
+            for (int f = 0; f < 4; f++)
+            {
+                int fi = f;
+                var fBtn = UiKit.Btn("form" + f, screen, new Vector2(-390 + f * 260, 545), new Vector2(245, 78),
+                    Loc.T("form." + f), () =>
+                    {
+                        run.Formation = fi;
+                        run.EnsureRows();
+                        ShowParty();
+                    }, 26, center: true);
+                UiKit.SetSelected(fBtn, run.Formation == f);
+                if (run.Formation == f)
+                {
+                    // 틴트만으론 구분이 약하다 — 선택 진형은 금색 텍스트 + 금색 아웃라인
+                    fBtn.GetComponentInChildren<Text>().color = UiKit.Hex("ffd75e");
+                    var glow = fBtn.gameObject.AddComponent<Outline>();
+                    glow.effectColor = new Color(1f, 0.84f, 0.37f, 0.9f);
+                    glow.effectDistance = new Vector2(4, 4);
+                }
+            }
+            UiKit.Label("formDesc", screen, new Vector2(0, 478), new Vector2(980, 40),
+                Loc.F("form." + run.Formation + ".desc", Balance.I.formAtkBonus, Balance.I.formGuardReduce),
+                24, UiKit.Hex("ffd75e"), center: true);
+            UiKit.Label("rowHint", screen, new Vector2(0, 438), new Vector2(980, 36),
+                Loc.F("party.rowHint", Balance.I.rowFrontBonus, Balance.I.rowBackPenalty), 22, UiKit.Hex("9a92b8"), center: true);
 
-            float y = 450;
+            float y = 330;
             DrawPartyRow(Loc.T("unit.tank"), "tank", RunState.TankMax, 0, true, y, Trait.None, -1);
             for (int i = 0; i < run.Party.Count; i++)
             {
-                y -= 195;
+                y -= 190;
                 var cd = RunData.Class(run.Party[i]);
                 DrawPartyRow(Loc.T(cd.LocKey), cd.Sheet, cd.Hp, cd.Power, cd.IsHealer, y, cd.Trait, i);
             }
@@ -224,22 +247,12 @@ namespace Tanker
                 name + "\n<size=24>" + stat + "</size>", 36, Color.white, TextAnchor.MiddleLeft, true, center: true);
             body.horizontalOverflow = HorizontalWrapMode.Wrap;
 
-            // 진형 배치 (v0.9) — 탱커는 전열 고정 표시, 동료는 탭으로 전열/후열 전환
-            if (idx < 0)
-            {
-                UiKit.Label("rowFix_" + name, screen, new Vector2(378, y), new Vector2(150, 50),
-                    Loc.T("party.front"), 26, UiKit.Hex("8f86ad"), center: true);
-                return;
-            }
-            bool front = run.Rows[idx] == 0;
-            var rowBtn = UiKit.Btn("row_" + idx, screen, new Vector2(378, y), new Vector2(150, 72),
-                front ? Loc.T("party.front") : Loc.T("party.back"), () =>
-                {
-                    run.Rows[idx] = run.Rows[idx] == 0 ? 1 : 0;
-                    ShowParty();
-                }, 27, center: true);
-            var rowTxt = rowBtn.GetComponentInChildren<Text>();
-            rowTxt.color = front ? UiKit.Hex("ffd75e") : UiKit.Hex("8fd4ff");
+            // 배치 표시 — 진형 프리셋에서 파생 (탱커는 항상 전열)
+            bool front = idx < 0 || (idx < run.Rows.Count && run.Rows[idx] == 0);
+            UiKit.Label("row_" + name + idx, screen, new Vector2(378, y), new Vector2(150, 50),
+                front ? Loc.T("party.front") : Loc.T("party.back"), 27,
+                idx < 0 ? UiKit.Hex("8f86ad") : front ? UiKit.Hex("ffd75e") : UiKit.Hex("8fd4ff"),
+                bold: true, center: true);
         }
 
         // ---------- 맵 ----------

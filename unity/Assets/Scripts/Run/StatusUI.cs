@@ -35,6 +35,7 @@ namespace Tanker
                 Loc.T("status.h1"), 46, Color.white, bold: true, center: true);
             UiKit.Label("meta", frame, new Vector2(0, top - 145), new Vector2(860, 40),
                 Loc.F("status.meta", run.Act + 1, run.FloorReached, Balance.I.mapFloors, run.Gold)
+                + "  ·  " + Loc.T("form." + run.Formation)
                 + "  ·  " + Loc.F("status.time", (int)(run.PlaySeconds / 60)), 28, UiKit.Hex("ffd75e"), center: true);
 
             // 파티 — 미니 초상 + HP

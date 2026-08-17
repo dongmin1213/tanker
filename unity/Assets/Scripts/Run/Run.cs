@@ -40,7 +40,8 @@ namespace Tanker
         public List<int> Visited = new();
         public List<ClassId> Party = new();   // 동료 (탱커 제외)
         public List<int> PartyHp = new();
-        public List<int> Rows = new();        // 동료 배치 — 0=전열 1=후열 (v0.9 진형, 탱커는 항상 전열)
+        public List<int> Rows = new();        // 동료 배치 — 0=전열 1=후열 (진형 프리셋에서 파생, 탱커는 항상 전열)
+        public int Formation;                 // 진형 프리셋 — 0=기본 1=밸런스 2=공격 3=보호 (v0.9)
         public List<Card> Deck = new();
         public List<RelicId> Relics = new();  // v0.7 유물
         public bool DpsShakenNext;            // 이벤트 (c) — 다음 전투에서 최강 공격수 위축 시작
@@ -111,14 +112,30 @@ namespace Tanker
             Map = RunData.GenerateMap(new System.Random(seed * 613 + 101));
         }
 
-        /// 배치 기본값 채우기 — 근접=전열, 원거리/힐러=후열. 구버전 저장 이관도 겸한다 (v0.9)
+        /// 진형 프리셋대로 배치 파생 — 세븐나이츠식 프리셋 선택 (v0.9, 구버전 저장 이관 겸용)
         public void EnsureRows()
         {
             if (Rows == null) Rows = new List<int>();
-            while (Rows.Count < Party.Count)
-                Rows.Add(RunData.Class(Party[Rows.Count]).Ranged ? 1 : 0);
-            while (Rows.Count > Party.Count) Rows.RemoveAt(Rows.Count - 1);
-            for (int i = 0; i < Rows.Count; i++) Rows[i] = Rows[i] == 0 ? 0 : 1; // 직렬화 계약 0/1 정규화
+            Rows.Clear();
+            if (Formation < 0 || Formation > 3) Formation = 0;
+            // 밸런스 진형: 최강 근접 1명만 전열 (창끝)
+            int spear = -1, spearPow = -1;
+            for (int i = 0; i < Party.Count; i++)
+            {
+                var cd = RunData.Class(Party[i]);
+                if (!cd.Ranged && cd.Power > spearPow) { spear = i; spearPow = cd.Power; }
+            }
+            for (int i = 0; i < Party.Count; i++)
+            {
+                var cd = RunData.Class(Party[i]);
+                Rows.Add(Formation switch
+                {
+                    2 => 0,                       // 공격 — 전원 전열
+                    3 => 1,                       // 보호 — 전원 후열 (탱커만 전열)
+                    1 => i == spear ? 0 : 1,      // 밸런스 — 창끝 하나만 전열
+                    _ => cd.Ranged ? 1 : 0,       // 기본 — 근접 전열·원거리 후열
+                });
+            }
         }
 
         /// camp=true(휴식 방)일 때만 물주머니 보너스 — 심층 진입 재정비 등엔 미적용

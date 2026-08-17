@@ -281,6 +281,7 @@ namespace Tanker
             // 진형: 근접 클래스는 전열 +, 후열 - (원거리는 무관)
             if (!a.IsTank && !a.RangedClass)
                 d += a.Row == 0 ? Balance.I.rowFrontBonus : -Balance.I.rowBackPenalty;
+            if (!a.IsTank && run != null && run.Formation == 2) d += Balance.I.formAtkBonus; // 공격 진형
             if (Turn == 1 && run != null && run.Has(RelicId.WarBanner)) d += Balance.I.relicWarBanner; // 군기
             if (shaken) d /= 2;                                               // 위축 = 이번 행동 전체 절반
             d = Mathf.Max(1, d);
@@ -502,6 +503,8 @@ namespace Tanker
             if (viaTaunt) dmg = Mathf.Max(0, dmg - TauntGuardAmt);
             if (viaCover) dmg = Mathf.Max(0, dmg - CoverReduceAmt - CoverBonusNow);
             if (PhalanxNow && receiver.Team == Team.Ally) dmg = Mathf.Max(0, dmg - PhalanxNowAmt);
+            if (run != null && run.Formation == 3 && receiver.Team == Team.Ally && !receiver.IsTank)
+                dmg = Mathf.Max(0, dmg - Balance.I.formGuardReduce); // 보호 진형 — 동료 피해 감산
             if (OathNow && receiver.IsTank) dmg = Mathf.Max(0, dmg - Balance.I.oathReduce);
             if (receiver.IsTank && BracingNow) dmg /= 2;
             if (receiver.IsTank && IronWillNow) dmg = Mathf.Min(dmg, IronWillNowCap); // 철의 의지: 한 방 상한

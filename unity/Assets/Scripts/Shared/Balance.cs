@@ -41,6 +41,8 @@ namespace Tanker
         public int rowBackPenalty = 1;   // 근접 후열 공격 -
         public int threatAuraBonus = 50; // 아군 킬각 우선순위: 지휘 오라
         public int threatBombBonus = 120;// 아군 킬각 우선순위: 폭발 임박
+        public int formAtkBonus = 1;     // 공격 진형: 전원 공격 +
+        public int formGuardReduce = 1;  // 보호 진형: 동료 받는 피해 -
         public int trapTankCost = 6;
         public int trapToll = 20;
         public int trapDpsCost = 4;
