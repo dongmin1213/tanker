@@ -430,12 +430,14 @@ namespace Tanker
                     StartBattle(RunData.GetEncounter(run));
                     break;
                 case NodeType.Event:
-                    // 이벤트 3종 — 시드 결정: 가시 함정 / 수상한 제단 / 떠돌이 학자 (v0.7 탐험 다양화)
-                    switch (new System.Random(run.Seed * 389 + run.Act * 4099 + run.Cur * 53).Next(3)) // 막마다 다른 스트림
+                    // 이벤트 12종 — 시드 결정 (v1.0 탐험 대확장)
+                    int evId = new System.Random(run.Seed * 389 + run.Act * 4099 + run.Cur * 53).Next(12);
+                    switch (evId)
                     {
                         case 0: ShowEvent(); break;
                         case 1: ShowAltar(); break;
-                        default: ShowScholar(); break;
+                        case 2: ShowScholar(); break;
+                        default: ShowChoiceEvent(evId); break;
                     }
                     break;
                 case NodeType.Rest: ShowRest(); break;
@@ -451,6 +453,12 @@ namespace Tanker
 
         void Advance()
         {
+            // 방 클리어 유물 — 지갑(골드)·야전 식량(동료 회복)
+            if (run.Has(RelicId.CoinPurse)) run.Gold += Balance.I.relicCoinPurse;
+            if (run.Has(RelicId.FieldRation))
+                for (int i = 0; i < run.PartyHp.Count; i++)
+                    if (run.PartyHp[i] > 0)
+                        run.PartyHp[i] = Mathf.Min(RunData.Class(run.Party[i]).Hp, run.PartyHp[i] + Balance.I.relicFieldRation);
             run.Pending = 0; run.PendingTreasure = false; run.PendingGold = 0; // 보상 수령 완료
             RunSave.Save(run); // 방 완료마다 자동 저장 — 중단해도 이어하기 (모바일 필수)
             ShowMap();
@@ -461,6 +469,7 @@ namespace Tanker
         public void ShowTreasure()
         {
             int got = Balance.I.treasureGold;
+            if (run.Has(RelicId.LuckyDice)) got += got * Balance.I.relicLuckyDiceGold / 100; // 행운의 주사위
             run.Gold += got;
             // 골드 지급 즉시 체크포인트 — 보상 화면에서 중단해도 골드 소실·중복 지급 없음
             run.Pending = 1; run.PendingTreasure = true; run.PendingGold = got;
@@ -477,18 +486,19 @@ namespace Tanker
             Clear();
             Background(0.5f);
             Gear();
-            Banner(Loc.T("descend.h1"), 640);
+            Banner(Loc.T(run.Act == 0 ? "descend.h1" : "descend.h1b"), 640);
             Deco("tank-idle", new Vector2(0, 380), new Vector2(300, 340), animate: true);
             var descP = UiKit.FramedPanel("descP", screen, new Vector2(0, 120), new Vector2(940, 180), center: true);
             descP.raycastTarget = false;
             UiKit.Label("desc", screen, new Vector2(0, 120), new Vector2(880, 160),
-                Loc.T("descend.desc"), 30, UiKit.Hex("cfc8e8"), center: true);
+                Loc.T(run.Act == 0 ? "descend.desc" : "descend.desc2"), 30, UiKit.Hex("cfc8e8"), center: true);
 
-            UiKit.Btn("descend", screen, new Vector2(0, -90), new Vector2(860, 130), Loc.T("descend.go"), () =>
+            UiKit.Btn("descend", screen, new Vector2(0, -90), new Vector2(860, 130),
+                Loc.T(run.Act == 0 ? "descend.go" : "descend.go2"), () =>
             {
-                run.Act = 1;
-                run.RestAll(Balance.I.descendHeal, camp: false); // 심층 진입 재정비 — 물주머니 미적용
-                run.Map = RunData.GenerateMap(new System.Random(run.Seed * 777 + 13));
+                run.Act++;                                    // 1막→2막(심층)→3막(나락)
+                run.RestAll(Balance.I.descendHeal, camp: false); // 진입 재정비 — 물주머니 미적용
+                run.Map = RunData.GenerateMap(new System.Random(run.Seed * 777 + 13 * run.Act));
                 run.Cur = -1;
                 run.Visited.Clear();
                 run.Pending = 0;
@@ -555,6 +565,21 @@ namespace Tanker
                 case RelicId.MerchantSeal: return Loc.F("relic.MerchantSeal.desc", (int)(b.relicMerchantSeal * 100));
                 case RelicId.OldStandard: return Loc.F("relic.OldStandard.desc", b.relicOldStandard);
                 case RelicId.GuardCharm: return Loc.F("relic.GuardCharm.desc", b.relicGuardCharm);
+                case RelicId.StoneHeart: return Loc.F("relic.StoneHeart.desc", b.relicStoneHeart);
+                case RelicId.BattleDrum: return Loc.F("relic.BattleDrum.desc", b.relicBattleDrum);
+                case RelicId.SilverBell: return Loc.F("relic.SilverBell.desc", b.relicSilverBell);
+                case RelicId.BloodPact: return Loc.F("relic.BloodPact.desc", b.relicBloodPactHp, b.relicBloodPactAtk);
+                case RelicId.TowerShield: return Loc.F("relic.TowerShield.desc", b.relicTowerShield);
+                case RelicId.SerpentRing: return Loc.F("relic.SerpentRing.desc", b.relicSerpentRing);
+                case RelicId.WardStone: return Loc.F("relic.WardStone.desc", b.relicWardStone);
+                case RelicId.CoinPurse: return Loc.F("relic.CoinPurse.desc", b.relicCoinPurse);
+                case RelicId.GraveMoss: return Loc.F("relic.GraveMoss.desc", b.relicGraveMoss);
+                case RelicId.RunedChain: return Loc.F("relic.RunedChain.desc", b.relicRunedChain);
+                case RelicId.MirrorPlate: return Loc.F("relic.MirrorPlate.desc", b.relicMirrorPlate);
+                case RelicId.FieldRation: return Loc.F("relic.FieldRation.desc", b.relicFieldRation);
+                case RelicId.ThickHide: return Loc.F("relic.ThickHide.desc", b.relicThickHide);
+                case RelicId.LuckyDice: return Loc.F("relic.LuckyDice.desc", b.relicLuckyDiceGold);
+                case RelicId.Titanite: return Loc.F("relic.Titanite.desc", b.relicTitanite);
                 default: return Loc.T("relic." + r + ".desc");
             }
         }
@@ -592,13 +617,13 @@ namespace Tanker
             battleGo = null;
             if (!won) { ShowEnding(false); return; }
             // 승리 즉시 체크포인트 — 보상 화면에서 중단해도 전투 재플레이 없이 보상부터 이어한다
-            if (wasBoss && run.Act == 0) run.Pending = 3;
-            else if (wasBoss) run.Pending = 0;               // 진엔딩 직행 — 엔딩이 저장을 지운다
+            if (wasBoss && run.Act < 2) run.Pending = 3;      // 1·2막 보스 격파 → 귀환/더 내려가기
+            else if (wasBoss) run.Pending = 0;               // 3막 최종 보스 → 진엔딩
             else run.Pending = wasElite ? 2 : 1;
             run.PendingTreasure = false; run.PendingGold = 0;
-            if (!wasBoss || run.Act == 0) RunSave.Save(run);
-            if (wasBoss && run.Act == 0) ShowDescend();      // 1막 보스 격파 — 귀환/심층 선택 (v0.8)
-            else if (wasBoss) ShowEnding(true);              // 리치 격파 — 진엔딩
+            if (!wasBoss || run.Act < 2) RunSave.Save(run);
+            if (wasBoss && run.Act < 2) ShowDescend();       // 보스 격파 — 귀환/더 깊이 (v1.0: 3막)
+            else if (wasBoss) ShowEnding(true);              // 최종 보스 격파 — 진엔딩
             else if (wasElite) ShowRelicGain();              // 엘리트 — 유물 확정 보상 후 카드 보상
             else ShowCardReward();
         }
@@ -621,7 +646,8 @@ namespace Tanker
             var rng = new System.Random(run.Seed * 397 + run.Act * 6421 + run.Cur * 71); // 막마다 다른 스트림
             var offered = new List<CardType>();
             var pool = new List<CardType>(Cards.Pool);
-            for (int i = 0; i < 3 && pool.Count > 0; i++)
+            int picks = 3 + (run.Has(RelicId.SoulLantern) ? 1 : 0); // 영혼 등불 — 선택지 +1
+            for (int i = 0; i < picks && pool.Count > 0; i++)
             {
                 var pick = pool[rng.Next(pool.Count)];
                 pool.Remove(pick);
@@ -659,6 +685,129 @@ namespace Tanker
                 }, 32, center: true);
 
             UiKit.Btn("skip", screen, new Vector2(0, -380), new Vector2(420, 110), Loc.T("reward.skip"), () => Advance(), 34, center: true);
+        }
+
+        // ---------- 이벤트: 데이터 주도 선택 이벤트 9종 (v1.0) ----------
+
+        /// 선택 이벤트 하나 — (라벨, 실행) 목록으로 정의해 화면 코드를 공용한다.
+        public void ShowChoiceEvent(int id)
+        {
+            currentScreen = () => ShowChoiceEvent(id);
+            Clear();
+            Background(0.6f);
+            Gear();
+            string key = "ev" + id;
+            Banner(Loc.T(key + ".h1"), 700);
+            Deco(EventDeco(id), new Vector2(0, 470), new Vector2(280, 260));
+            var descP = UiKit.FramedPanel("descP", screen, new Vector2(0, 250), new Vector2(940, 200), center: true);
+            descP.raycastTarget = false;
+            UiKit.Label("desc", screen, new Vector2(0, 250), new Vector2(880, 180),
+                Loc.T(key + ".desc"), 30, UiKit.Hex("cfc8e8"), center: true);
+
+            var opts = EventOptions(id);
+            for (int i = 0; i < opts.Count; i++)
+            {
+                var o = opts[i];
+                var btn = UiKit.Btn("opt" + i, screen, new Vector2(0, -20 - i * 150), new Vector2(900, 125),
+                    o.Label, () => { o.Run(); Advance(); }, 30, center: true);
+                btn.interactable = o.Enabled;
+                var t = btn.GetComponentInChildren<Text>();
+                t.horizontalOverflow = HorizontalWrapMode.Wrap;
+                t.rectTransform.sizeDelta = new Vector2(840, 110);
+            }
+            UiKit.Label("hint", screen, new Vector2(0, -560), new Vector2(920, 40),
+                Loc.T("ev.hint"), 24, UiKit.Hex("8f86ad"), center: true);
+        }
+
+        struct EvOption { public string Label; public bool Enabled; public System.Action Run; }
+
+        static string EventDeco(int id) => id switch
+        {
+            3 => "icon-chest", 4 => "icon-rest", 5 => "icon-shop", 6 => "icon-shop",
+            7 => "fx-heal", 8 => "icon-elite", 9 => "healer-idle", 10 => "icon-chest", _ => "tank-idle",
+        };
+
+        List<EvOption> EventOptions(int id)
+        {
+            var b = Balance.I;
+            var list = new List<EvOption>();
+            switch (id)
+            {
+                case 3: // 무너진 도서관 — 카드 무료 강화
+                    list.Add(new EvOption { Label = Loc.T("ev3.a"), Enabled = HasUpgradable(), Run = () => UpgradeRandomCard() });
+                    list.Add(new EvOption { Label = Loc.F("ev3.b", b.treasureGold / 2), Enabled = true, Run = () => run.Gold += b.treasureGold / 2 });
+                    break;
+                case 4: // 버려진 야영지 — 회복 or 골드
+                    list.Add(new EvOption { Label = Loc.F("ev4.a", (int)(b.restRatio * 100)), Enabled = true, Run = () => run.RestAll(b.restRatio) });
+                    list.Add(new EvOption { Label = Loc.F("ev4.b", b.treasureGold), Enabled = true, Run = () => run.Gold += b.treasureGold });
+                    break;
+                case 5: // 떠도는 유물상 — 골드로 유물 즉시 구매
+                    int rp = Mathf.RoundToInt(b.relicPrice * 1.2f);
+                    list.Add(new EvOption { Label = Loc.F("ev5.a", rp), Enabled = run.Gold >= rp && RandomNewRelic() != null,
+                        Run = () => { run.Gold -= rp; var r = RandomNewRelic(); if (r != null) run.AddRelic(r.Value); } });
+                    list.Add(new EvOption { Label = Loc.T("ev5.b"), Enabled = true, Run = () => { } });
+                    break;
+                case 6: // 도박꾼 — 골드 2배 or 전액 상실
+                    int bet = Mathf.Min(run.Gold, 60);
+                    bool win = new System.Random(run.Seed * 733 + run.Cur * 17).Next(2) == 0;
+                    list.Add(new EvOption { Label = Loc.F("ev6.a", bet), Enabled = bet > 0,
+                        Run = () => { if (win) run.Gold += bet; else run.Gold -= bet; } });
+                    list.Add(new EvOption { Label = Loc.T("ev6.b"), Enabled = true, Run = () => { } });
+                    break;
+                case 7: // 저주받은 우물 — HP 지불로 카드 2장
+                    int cost7 = b.trapTankCost;
+                    list.Add(new EvOption { Label = Loc.F("ev7.a", cost7), Enabled = run.TankHp > cost7,
+                        Run = () => { run.TankHp -= cost7; AddRandomCards(2); } });
+                    list.Add(new EvOption { Label = Loc.T("ev7.b"), Enabled = true, Run = () => { } });
+                    break;
+                case 8: // 버려진 대장간 — 골드로 카드 강화
+                    int fee = b.cardRemovePrice;
+                    list.Add(new EvOption { Label = Loc.F("ev8.a", fee), Enabled = run.Gold >= fee && HasUpgradable(),
+                        Run = () => { run.Gold -= fee; UpgradeRandomCard(); } });
+                    list.Add(new EvOption { Label = Loc.T("ev8.b"), Enabled = true, Run = () => run.TankHp = Mathf.Min(run.TankMaxHp, run.TankHp + b.potionHeal) });
+                    break;
+                case 9: // 굶주린 동료 — 동료 완전 회복 vs 골드
+                    list.Add(new EvOption { Label = Loc.T("ev9.a"), Enabled = true, Run = () =>
+                        { for (int i = 0; i < run.PartyHp.Count; i++) if (run.PartyHp[i] > 0) run.PartyHp[i] = RunData.Class(run.Party[i]).Hp; } });
+                    list.Add(new EvOption { Label = Loc.F("ev9.b", b.treasureGold), Enabled = true, Run = () => run.Gold += b.treasureGold });
+                    break;
+                case 10: // 수상한 상자 — 유물 or 함정
+                    bool trap = new System.Random(run.Seed * 911 + run.Cur * 29).Next(3) == 0;
+                    list.Add(new EvOption { Label = Loc.T("ev10.a"), Enabled = true, Run = () =>
+                        { if (trap) run.TankHp = Mathf.Max(1, run.TankHp - b.trapTankCost * 2);
+                          else { var r = RandomNewRelic(); if (r != null) run.AddRelic(r.Value); else run.Gold += b.treasureGold; } } });
+                    list.Add(new EvOption { Label = Loc.T("ev10.b"), Enabled = true, Run = () => { } });
+                    break;
+                default: // 11 순례자 — 골드로 최대 HP 영구 상승
+                    int pf = b.guardPrice;
+                    list.Add(new EvOption { Label = Loc.F("ev11.a", pf, b.relicIronHeart / 2), Enabled = run.Gold >= pf,
+                        Run = () => { run.Gold -= pf; run.BonusMaxHp += b.relicIronHeart / 2; run.TankHp += b.relicIronHeart / 2; } });
+                    list.Add(new EvOption { Label = Loc.T("ev11.b"), Enabled = true, Run = () => { } });
+                    break;
+            }
+            return list;
+        }
+
+        bool HasUpgradable()
+        {
+            foreach (var c in run.Deck) if (!c.Plus) return true;
+            return false;
+        }
+
+        void UpgradeRandomCard()
+        {
+            var rng = new System.Random(run.Seed * 577 + run.Cur * 13);
+            var idx = new List<int>();
+            for (int i = 0; i < run.Deck.Count; i++) if (!run.Deck[i].Plus) idx.Add(i);
+            if (idx.Count == 0) return;
+            int pick = idx[rng.Next(idx.Count)];
+            run.Deck[pick] = new Card(run.Deck[pick].Type, true);
+        }
+
+        void AddRandomCards(int n)
+        {
+            var rng = new System.Random(run.Seed * 331 + run.Cur * 7);
+            for (int i = 0; i < n; i++) run.Deck.Add(new Card(Cards.Pool[rng.Next(Cards.Pool.Length)]));
         }
 
         // ---------- 이벤트: 가시 함정 복도 ----------
@@ -972,7 +1121,7 @@ namespace Tanker
             Clear();
             Background(won ? 0.3f : 0.78f);
             Gear(onTitle: true);
-            bool trueEnd = won && run.Act >= 1; // 리치까지 격파한 진엔딩
+            bool trueEnd = won && run.Act >= 2; // 3막 최종 보스까지 격파한 진엔딩
             Banner(Loc.T(trueEnd ? "end.true.h1" : won ? "end.win.h1" : "end.lose.h1"), 640);
             UiKit.Label("desc", screen, new Vector2(0, 520), new Vector2(940, 100),
                 Loc.T(trueEnd ? "end.true.desc" : won ? "end.win.desc" : "end.lose.desc"),

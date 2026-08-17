@@ -43,6 +43,64 @@ namespace Tanker
         public int threatBombBonus = 120;// 아군 킬각 우선순위: 폭발 임박
         public int formAtkBonus = 1;     // 공격 진형: 전원 공격 +
         public int formGuardReduce = 1;  // 보호 진형: 동료 받는 피해 -
+
+        // ---- v1.0 풀 확장 ----
+        // 신규 클래스 4 (창병·독술사·드루이드·거인) + 4 (사수·수도승·점술사·종사)
+        public int lancerHp = 19; public int lancerPower = 5; public int lancerGuard = 1;
+        public int venomHp = 13; public int venomPower = 3; public int venomPoison = 3;
+        public int druidHp = 15; public int druidPower = 3;
+        public int titanHp = 24; public int titanPower = 3; public int titanRetaliate = 2;
+        public int arbalestHp = 14; public int arbalestPower = 6;
+        public int monkHp = 16; public int monkPower = 5;
+        public int seerHp = 12; public int seerPower = 4;
+        public int squireHp = 17; public int squirePower = 3;
+        // 신규 적
+        public int oozeHp = 16; public int oozePower = 4;
+        public int silencerHp = 13;
+        public int gazerHp = 12;
+        public int piercerHp = 17; public int piercerPower = 6;
+        public int effigyHp = 15; public int effigyPower = 3;
+        public int leechHp = 11; public int leechPower = 3;
+        public int ratHp = 9; public int ratPower = 3; public int ratPoison = 2;
+        public int zealotHp = 11; public int zealotPower = 5; public int zealotDeathBuff = 2;
+        public int brambleHp = 14; public int bramblePower = 1;
+        public int breakerHp = 15; public int breakerPower = 4;
+        public int mirrorHp = 13; public int mirrorPower = 4;
+        public int burrowerHp = 16; public int burrowerPower = 7;
+        public int rotHp = 13;
+        public int twinHp = 12; public int twinPower = 4;
+        public int sentinelHp = 20; public int sentinelPower = 12; public int sentinelWake = 3;
+        // 신규 보스
+        public int broodHp = 46; public int broodPower = 9; public int broodAoePower = 5;
+        public int broodlingHp = 7; public int broodlingPower = 3; public int broodEnrageHp = 22;
+        public int colossusHp = 64; public int colossusPower = 13; public int colossusAoePower = 5; public int colossusEnrageHp = 30;
+        public int wyrmHp = 80; public int wyrmPower = 15; public int wyrmAoePower = 6; public int wyrmEnrageHp = 38;
+        // 신규 카드
+        public int vanguardAtk = 2; public int vanguardAtkPlus = 3;
+        public int rearguardReduce = 3; public int rearguardReducePlus = 5;
+        public int vowHeal = 2; public int vowTurns = 3; public int vowTurnsPlus = 5;
+        public int aegisCap = 4; public int aegisTurns = 2; public int aegisTurnsPlus = 3;
+        public int repositionGuard = 2; public int repositionGuardPlus = 4;
+        public int barricadeAmt = 2; public int barricadeTurns = 2; public int barricadeAmtPlus = 3; public int barricadeTurnsPlus = 3;
+        public int awakenCost = 4; public int awakenCostPlus = 2;
+        public int scoutDraw = 2; public int scoutDrawPlus = 3;
+        public int purgePlusHeal = 3;
+        public int warsongMult = 2; public int warsongMultPlus = 3;
+        public int inspireAtk = 1; public int inspireAtkPlus = 2;
+        public int counterMult = 2; public int counterMultPlus = 3;
+        public int fortressAlly = 1; public int fortressAllyPlus = 2;
+        public int undyingHp = 1; public int undyingHpPlus = 5;
+        public int feintBackfire = 2;
+        public int barterGold = 25; public int barterGoldPlus = 40;
+        public int studyReduce = 1; public int studyReducePlus = 3;
+        public int poisonTick = 1;
+        // v1.0 유물 20종
+        public int relicStoneHeart = 2; public int relicBattleDrum = 1; public int relicSilverBell = 1;
+        public int relicBloodPactHp = 5; public int relicBloodPactAtk = 2; public int relicTowerShield = 8;
+        public int relicSerpentRing = 1; public int relicWardStone = 2; public int relicCoinPurse = 8;
+        public int relicGraveMoss = 2; public int relicRunedChain = 2; public int relicMirrorPlate = 25;
+        public int relicFieldRation = 3; public int relicThickHide = 1; public int relicTitanite = 1;
+        public int relicLuckyDiceGold = 50;
         public int trapTankCost = 6;
         public int trapToll = 20;
         public int trapDpsCost = 4;

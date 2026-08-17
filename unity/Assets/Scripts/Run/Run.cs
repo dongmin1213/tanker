@@ -14,10 +14,39 @@ namespace Tanker
         public List<int> Next = new();
     }
 
-    public enum ClassId { Warrior, Rogue, Mage, Ranger, Assassin, Beastkin, Cleric, Paladin, Berserker, Bard, Warden, Shadow }
+    public enum ClassId
+    {
+        Warrior, Rogue, Mage, Ranger, Assassin, Beastkin, Cleric, Paladin, Berserker, Bard, Warden, Shadow,
+        // v1.0 대확장 — 전부 고유 특성
+        Lancer, Venom, Druid, Titan, Arbalest, Monk, Seer, Squire,
+    }
 
     /// 런 전체 패시브 유물 (v0.7) — 획득: 엘리트 확정 / 보물 택1 / 상점
-    public enum RelicId { ThornShield, VeteranHelm, WarBanner, GoldMagnet, WaterSkin, VictoryMeal, IronHeart, MerchantSeal, OldStandard, GuardCharm }
+    public enum RelicId
+    {
+        ThornShield, VeteranHelm, WarBanner, GoldMagnet, WaterSkin, VictoryMeal, IronHeart, MerchantSeal, OldStandard, GuardCharm,
+        // v1.0 대확장 — 20종 추가 (전부 다른 축: 전투 개시 / 지속 / 조건부 / 경제 / 덱 / 상태)
+        StoneHeart,    // 개전 시 방벽 2턴
+        BattleDrum,    // 매 턴 아군 전원 공격 +1 (누적 아님)
+        SilverBell,    // 전투 시작 시 카드 1장 추가 드로우
+        BloodPact,     // 탱커 최대 HP -5, 아군 전원 공격 +2
+        TowerShield,   // 받는 한 방 상한 8 (상시)
+        Lodestone,     // 적 오라·무리 보너스 무효
+        SerpentRing,   // 아군 공격이 독 1중첩 부여
+        HolyWater,     // 전투 시작 시 아군 전원 위축·독 해제
+        WardStone,     // 광역 피해 -2
+        CoinPurse,     // 방 클리어마다 골드 +8
+        SharpStone,    // 전투 첫 턴 아군 전원 공격 2배
+        GraveMoss,     // 아군 처치 시 탱커 +2 회복
+        RunedChain,    // 도발 대상 공격 -2 (도발 함성 아이템과 별도 축: 유물 상시)
+        MirrorPlate,   // 탱커 직격 시 25% 반사 (최소 1)
+        FieldRation,   // 방 클리어마다 아군 전원 +3
+        SoulLantern,   // 전투 승리 시 카드 보상 선택지 +1
+        BoneWhistle,   // 첫 턴 적 하나 무력화 (보스 제외)
+        ThickHide,     // 동료 받는 피해 -1
+        LuckyDice,     // 상점 재고 +1, 보물 골드 +50%
+        Titanite,      // 강화(+) 카드 효과 추가 상승 (강화 수치 +1)
+    }
 
     public class ClassDef
     {
@@ -46,6 +75,7 @@ namespace Tanker
         public List<RelicId> Relics = new();  // v0.7 유물
         public bool DpsShakenNext;            // 이벤트 (c) — 다음 전투에서 최강 공격수 위축 시작
         public int TauntGuard, CoverReduce, BraceBonus;
+        public int BonusMaxHp;                // 영구 최대 HP 상승 (이벤트·상점)
         public int TotalRedirected, TotalMitigated;
         public int BattlesWon;
         public int BattleIndex;               // 전투 순번 (통계)
@@ -57,7 +87,10 @@ namespace Tanker
         public bool PendingTreasure;          // 보물방 보상 여부
 
         public static int TankMax => Balance.I.tankHp; // 기본 최대 (유물 미반영 — 표시는 TankMaxHp 사용)
-        public int TankMaxHp => Balance.I.tankHp + (Has(RelicId.IronHeart) ? Balance.I.relicIronHeart : 0);
+        public int TankMaxHp => Balance.I.tankHp
+            + (Has(RelicId.IronHeart) ? Balance.I.relicIronHeart : 0)
+            - (Has(RelicId.BloodPact) ? Balance.I.relicBloodPactHp : 0)    // 피의 계약: 최대 HP 대가
+            + BonusMaxHp;
 
         public bool Has(RelicId r) => Relics.Contains(r);
 
@@ -204,14 +237,19 @@ namespace Tanker
         public int Hp, Power, AoePower, ChargeOffset, Thorns, BountyGold, DamageCap;
         public AiKind Ai;
         public bool Lifesteal, Aura, SelfShield, Pack, Leap;
+        public bool Pierce, Reflector, HealBlock, Splitter, Dormant, DeathBuff, Env, CounterOnce, PoisonHit;
 
         public UnitDef(string nameKey, string sheet, int hp, int power, AiKind ai, int chargeOffset = 0, int aoePower = 0,
                        int thorns = 0, bool lifesteal = false, bool aura = false,
                        bool selfShield = false, bool pack = false, int bountyGold = 0, int damageCap = 0,
-                       bool leap = false)
+                       bool leap = false, bool pierce = false, bool reflector = false, bool healBlock = false,
+                       bool splitter = false, bool dormant = false, bool deathBuff = false, bool env = false,
+                       bool counterOnce = false, bool poisonHit = false)
         { NameKey = nameKey; Sheet = sheet; Hp = hp; Power = power; Ai = ai; ChargeOffset = chargeOffset; AoePower = aoePower;
           Thorns = thorns; Lifesteal = lifesteal; Aura = aura;
-          SelfShield = selfShield; Pack = pack; BountyGold = bountyGold; DamageCap = damageCap; Leap = leap; }
+          SelfShield = selfShield; Pack = pack; BountyGold = bountyGold; DamageCap = damageCap; Leap = leap;
+          Pierce = pierce; Reflector = reflector; HealBlock = healBlock; Splitter = splitter; Dormant = dormant;
+          DeathBuff = deathBuff; Env = env; CounterOnce = counterOnce; PoisonHit = poisonHit; }
     }
 
     public class EncounterDef
@@ -322,6 +360,14 @@ namespace Tanker
                 case ClassId.Paladin: return new ClassDef { Id = id, LocKey = "class.paladin", Sheet = "paladin", Hp = b.paladinHp, Power = b.paladinPower, Trait = Trait.TankHealOnHit };
                 case ClassId.Berserker: return new ClassDef { Id = id, LocKey = "class.berserker", Sheet = "berserker", Hp = b.berserkerHp, Power = b.berserkerPower, Trait = Trait.Frenzy };
                 case ClassId.Bard: return new ClassDef { Id = id, LocKey = "class.bard", Sheet = "bard", Hp = b.bardHp, Power = b.bardPower, Trait = Trait.Cleanse, Ranged = true };
+                case ClassId.Lancer: return new ClassDef { Id = id, LocKey = "class.lancer", Sheet = "lancer", Hp = b.lancerHp, Power = b.lancerPower, Trait = Trait.LongReach };
+                case ClassId.Venom: return new ClassDef { Id = id, LocKey = "class.venom", Sheet = "venom", Hp = b.venomHp, Power = b.venomPower, Trait = Trait.Poison, Ranged = true };
+                case ClassId.Druid: return new ClassDef { Id = id, LocKey = "class.druid", Sheet = "druid", Hp = b.druidHp, Power = b.druidPower, IsHealer = true, Trait = Trait.GroveHeal, Ranged = true };
+                case ClassId.Titan: return new ClassDef { Id = id, LocKey = "class.titan", Sheet = "titan", Hp = b.titanHp, Power = b.titanPower, Trait = Trait.Retaliate };
+                case ClassId.Arbalest: return new ClassDef { Id = id, LocKey = "class.arbalest", Sheet = "arbalest", Hp = b.arbalestHp, Power = b.arbalestPower, Trait = Trait.Volley, Ranged = true };
+                case ClassId.Monk: return new ClassDef { Id = id, LocKey = "class.monk", Sheet = "monk", Hp = b.monkHp, Power = b.monkPower, Trait = Trait.Focus };
+                case ClassId.Seer: return new ClassDef { Id = id, LocKey = "class.seer", Sheet = "seer", Hp = b.seerHp, Power = b.seerPower, Trait = Trait.Foresight, Ranged = true };
+                case ClassId.Squire: return new ClassDef { Id = id, LocKey = "class.squire", Sheet = "squire", Hp = b.squireHp, Power = b.squirePower, Trait = Trait.Bulwark };
                 default: return new ClassDef { Id = id, LocKey = "class.cleric", Sheet = "healer", Hp = b.clericHp, Power = b.clericPower, IsHealer = true, Ranged = true };
             }
         }
@@ -333,6 +379,8 @@ namespace Tanker
         {
             public string Key, Sheet; public int Hp, Power, Cost; public AiKind Ai;
             public int Thorns, BountyGold, DamageCap; public bool Lifesteal, Aura, SelfShield, Pack, Leap;
+            public bool Pierce, Reflector, HealBlock, Splitter, DeathBuff, Env, CounterOnce, PoisonHit;
+            public int MinFloor;   // 이 층 이상에서만 등장 (후반 전용 적)
         }
 
         static List<EnemyPick> EnemyPool()
@@ -359,6 +407,22 @@ namespace Tanker
                 new EnemyPick { Key = "unit.wolf", Sheet = "wolf", Hp = b.wolfHp, Power = b.wolfPower, Ai = AiKind.LowestBackliner, Cost = 2, Pack = true, Leap = true },
                 new EnemyPick { Key = "unit.mimic", Sheet = "mimic", Hp = b.mimicHp, Power = b.mimicPower, Ai = AiKind.FixedDps, Cost = 2, BountyGold = b.mimicBounty },
                 new EnemyPick { Key = "unit.armor", Sheet = "armor", Hp = b.armorHp, Power = b.armorPower, Ai = AiKind.LowestBackliner, Cost = 3, DamageCap = b.armorDamageCap },
+                // ---- v1.0 신규 15종 (전부 고유 매커니즘) ----
+                new EnemyPick { Key = "unit.ooze", Sheet = "ooze", Hp = b.oozeHp, Power = b.oozePower, Ai = AiKind.LowestBackliner, Cost = 3, Splitter = true },
+                new EnemyPick { Key = "unit.silencer", Sheet = "silencer", Hp = b.silencerHp, Power = 0, Ai = AiKind.Sealer, Cost = 3, MinFloor = 2 },
+                new EnemyPick { Key = "unit.gazer", Sheet = "gazer", Hp = b.gazerHp, Power = 0, Ai = AiKind.Gazer, Cost = 3, MinFloor = 3 },
+                new EnemyPick { Key = "unit.piercer", Sheet = "piercer", Hp = b.piercerHp, Power = b.piercerPower, Ai = AiKind.FixedDps, Cost = 4, Pierce = true, MinFloor = 3 },
+                new EnemyPick { Key = "unit.effigy", Sheet = "effigy", Hp = b.effigyHp, Power = b.effigyPower, Ai = AiKind.LowestBackliner, Cost = 3, Reflector = true },
+                new EnemyPick { Key = "unit.leech", Sheet = "leech", Hp = b.leechHp, Power = b.leechPower, Ai = AiKind.LowestBackliner, Cost = 2, HealBlock = true },
+                new EnemyPick { Key = "unit.rat", Sheet = "rat", Hp = b.ratHp, Power = b.ratPower, Ai = AiKind.LowestBackliner, Cost = 2, PoisonHit = true, Leap = true },
+                new EnemyPick { Key = "unit.zealot", Sheet = "zealot", Hp = b.zealotHp, Power = b.zealotPower, Ai = AiKind.FixedDps, Cost = 3, DeathBuff = true },
+                new EnemyPick { Key = "unit.bramble", Sheet = "bramble", Hp = b.brambleHp, Power = b.bramblePower, Ai = AiKind.LowestBackliner, Cost = 2, Env = true },
+                new EnemyPick { Key = "unit.breaker", Sheet = "breaker", Hp = b.breakerHp, Power = b.breakerPower, Ai = AiKind.Dispeller, Cost = 3, MinFloor = 2 },
+                new EnemyPick { Key = "unit.mirror", Sheet = "mirror", Hp = b.mirrorHp, Power = b.mirrorPower, Ai = AiKind.LowestBackliner, Cost = 3, CounterOnce = true, MinFloor = 2 },
+                new EnemyPick { Key = "unit.burrower", Sheet = "burrower", Hp = b.burrowerHp, Power = b.burrowerPower, Ai = AiKind.Burrower, Cost = 4, MinFloor = 4 },
+                new EnemyPick { Key = "unit.rot", Sheet = "rot", Hp = b.rotHp, Power = 0, Ai = AiKind.Rotmancer, Cost = 3, MinFloor = 3 },
+                new EnemyPick { Key = "unit.twin", Sheet = "twin", Hp = b.twinHp, Power = b.twinPower, Ai = AiKind.TwinBlade, Cost = 2 },
+                new EnemyPick { Key = "unit.sentinel", Sheet = "sentinel", Hp = b.sentinelHp, Power = b.sentinelPower, Ai = AiKind.Sentinel, Cost = 4, MinFloor = 5 },
             };
         }
 
@@ -393,6 +457,9 @@ namespace Tanker
             }
             list.Add(new CodexEnemy { Key = "unit.warlord", Sheet = "boss", Hp = b.bossHp, Power = b.bossPower });
             list.Add(new CodexEnemy { Key = "unit.lich", Sheet = "lich", Hp = b.lichHp, Power = b.lichPower });
+            list.Add(new CodexEnemy { Key = "unit.brood", Sheet = "brood", Hp = b.broodHp, Power = b.broodPower });
+            list.Add(new CodexEnemy { Key = "unit.colossus", Sheet = "colossus", Hp = b.colossusHp, Power = b.colossusPower });
+            list.Add(new CodexEnemy { Key = "unit.wyrm", Sheet = "wyrm", Hp = b.wyrmHp, Power = b.wyrmPower });
             return list;
         }
 
@@ -413,17 +480,49 @@ namespace Tanker
 
             if (run.CurNode.Type == NodeType.Boss)
             {
-                if (run.Act >= 1)
+                // 막마다 보스 2종 중 시드 선택 (3막은 최종 보스 고정) — 리플레이성 (v1.0)
+                bool altBoss = new System.Random(run.Seed * 1301 + run.Act * 97).Next(2) == 1;
+                if (run.Act >= 2)
                     return new EncounterDef
                     {
-                        Title = Loc.T("enc.lich"),
-                        TitleKey = "enc.lich",
-                        Gold = 0,
+                        Title = Loc.T("enc.wyrm"), TitleKey = "enc.wyrm", Gold = 0,
                         Units = new[]
                         {
-                            new UnitDef("unit.lich", "lich", b.lichHp, b.lichPower,
-                                        AiKind.LichBoss, aoePower: b.lichAoePower),
+                            new UnitDef("unit.wyrm", "wyrm", b.wyrmHp, b.wyrmPower, AiKind.WyrmBoss, aoePower: b.wyrmAoePower, pierce: true),
+                            new UnitDef("unit.zealot", "zealot", ScaledHp(b.zealotHp, stage), ScaledPower(b.zealotPower, stage), AiKind.FixedDps, deathBuff: true),
+                        },
+                    };
+                if (run.Act == 1)
+                {
+                    if (altBoss)
+                        return new EncounterDef
+                        {
+                            Title = Loc.T("enc.colossus"), TitleKey = "enc.colossus", Gold = 0,
+                            Units = new[]
+                            {
+                                new UnitDef("unit.colossus", "colossus", b.colossusHp, b.colossusPower, AiKind.ColossusBoss, aoePower: b.colossusAoePower, pierce: true),
+                                new UnitDef("unit.breaker", "breaker", ScaledHp(b.breakerHp, stage), b.breakerPower, AiKind.Dispeller),
+                            },
+                        };
+                    return new EncounterDef
+                    {
+                        Title = Loc.T("enc.lich"), TitleKey = "enc.lich", Gold = 0,
+                        Units = new[]
+                        {
+                            new UnitDef("unit.lich", "lich", b.lichHp, b.lichPower, AiKind.LichBoss, aoePower: b.lichAoePower),
                             new UnitDef("unit.necro", "necro", ScaledHp(b.necroHp, stage), 0, AiKind.EnemyHealer),
+                        },
+                    };
+                }
+                if (altBoss)
+                    return new EncounterDef
+                    {
+                        Title = Loc.T("enc.brood"), TitleKey = "enc.brood", Gold = 0,
+                        Units = new[]
+                        {
+                            new UnitDef("unit.brood", "brood", ScaledHp(b.broodHp, stage), ScaledPower(b.broodPower, stage), AiKind.BroodBoss, aoePower: ScaledPower(b.broodAoePower, stage)),
+                            new UnitDef("unit.broodling", "spider", b.broodlingHp, b.broodlingPower, AiKind.SpiderDouble, leap: true, dormant: true),
+                            new UnitDef("unit.broodling", "spider", b.broodlingHp, b.broodlingPower, AiKind.SpiderDouble, leap: true, dormant: true),
                         },
                     };
                 return new EncounterDef
@@ -449,26 +548,39 @@ namespace Tanker
             var pool = EnemyPool();
             var picked = new List<EnemyPick>();
             int guard = 0;
-            while (budget > 0 && picked.Count < 4 && guard++ < 50)
+            while (budget > 0 && picked.Count < 4 && guard++ < 60)
             {
                 var cand = pool[rng.Next(pool.Count)];
+                if (cand.MinFloor > run.CurNode.Floor + run.Act * b.mapFloors) continue; // 후반 전용 적
                 if (cand.Cost > budget && picked.Count >= 2) break;
                 if (cand.Cost > budget) continue;
                 picked.Add(cand);
                 budget -= cand.Cost;
+                // 쌍둥이 검사는 반드시 짝으로 등장 (혼자면 광분 매커니즘이 무의미)
+                if (cand.Ai == AiKind.TwinBlade && picked.Count < 4) { picked.Add(cand); budget -= cand.Cost; }
             }
             while (picked.Count < 2) { picked.Add(pool[4]); } // 최소 2마리 (슬라임 보충)
 
-            var units = new UnitDef[picked.Count];
+            var unitList = new List<UnitDef>();
             int bruteOffset = 0;
             for (int i = 0; i < picked.Count; i++)
             {
                 var p = picked[i];
-                units[i] = new UnitDef(p.Key, p.Sheet, ScaledHp(p.Hp, stage), ScaledPower(p.Power, stage),
+                unitList.Add(new UnitDef(p.Key, p.Sheet, ScaledHp(p.Hp, stage), ScaledPower(p.Power, stage),
                                        p.Ai, chargeOffset: p.Ai == AiKind.BruteCycle ? (bruteOffset++ % 2) : 0,
                                        thorns: p.Thorns, lifesteal: p.Lifesteal, aura: p.Aura,
-                                       selfShield: p.SelfShield, pack: p.Pack, bountyGold: p.BountyGold, damageCap: p.DamageCap, leap: p.Leap);
+                                       selfShield: p.SelfShield, pack: p.Pack, bountyGold: p.BountyGold, damageCap: p.DamageCap,
+                                       leap: p.Leap, pierce: p.Pierce, reflector: p.Reflector, healBlock: p.HealBlock,
+                                       splitter: p.Splitter, deathBuff: p.DeathBuff, env: p.Env,
+                                       counterOnce: p.CounterOnce, poisonHit: p.PoisonHit));
+                // 분열 슬라임 — 절반 능력치 분열체 2마리를 대기 상태로 동반 (죽은 다음 턴에 각성)
+                if (p.Splitter)
+                    for (int c = 0; c < 2; c++)
+                        unitList.Add(new UnitDef("unit.oozelet", p.Sheet, System.Math.Max(4, ScaledHp(p.Hp, stage) / 2),
+                                                 System.Math.Max(1, ScaledPower(p.Power, stage) / 2),
+                                                 AiKind.LowestBackliner, dormant: true));
             }
+            var units = unitList.ToArray();
             EncounterTitleKeys(picked, elite, out var tKey, out var tArg);
             return new EncounterDef
             {
@@ -486,6 +598,7 @@ namespace Tanker
             return new List<ShopItem>
             {
                 new ShopItem { NameKey = "item.guard", DescKey = "item.guard.desc", DescArg = b.guardValue, Price = b.guardPrice, Apply = r => r.TauntGuard += b.guardValue },
+                new ShopItem { NameKey = "item.plate", DescKey = "item.plate.desc", DescArg = b.relicIronHeart, Price = b.coverPrice + 10, Apply = r => { r.BonusMaxHp += b.relicIronHeart; r.TankHp += b.relicIronHeart; } },
                 new ShopItem { NameKey = "item.cover", DescKey = "item.cover.desc", DescArg = b.coverValue, Price = b.coverPrice, Apply = r => r.CoverReduce += b.coverValue },
                 new ShopItem { NameKey = "item.brace", DescKey = "item.brace.desc", DescArg = b.braceValue, Price = b.bracePrice, Apply = r => r.BraceBonus += b.braceValue },
                 new ShopItem { NameKey = "item.potion", DescKey = "item.potion.desc", DescArg = b.potionHeal, Price = b.potionPrice, Apply = r => r.TankHp = System.Math.Min(r.TankMaxHp, r.TankHp + b.potionHeal) },

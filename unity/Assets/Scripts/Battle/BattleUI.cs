@@ -152,6 +152,22 @@ namespace Tanker
                 case "wolf": return new Vector2(150, 130);
                 case "mimic": return new Vector2(140, 130);
                 case "lich": return new Vector2(250, 300);
+                // v1.0 신규
+                case "ooze": return new Vector2(150, 130);
+                case "silencer": case "rot": case "seer": return new Vector2(140, 175);
+                case "gazer": case "leech": case "mirror": return new Vector2(140, 140);
+                case "piercer": return new Vector2(185, 200);
+                case "effigy": case "zealot": case "twin": return new Vector2(140, 170);
+                case "rat": return new Vector2(130, 110);
+                case "bramble": return new Vector2(160, 150);
+                case "breaker": case "titan": return new Vector2(175, 195);
+                case "burrower": return new Vector2(170, 140);
+                case "sentinel": return new Vector2(180, 200);
+                case "brood": return new Vector2(240, 210);
+                case "colossus": return new Vector2(250, 280);
+                case "wyrm": return new Vector2(280, 300);
+                case "lancer": case "arbalest": case "monk": case "squire": case "venom": case "druid":
+                    return new Vector2(140, 175);
                 default: return new Vector2(140, 160);
             }
         }
@@ -191,6 +207,32 @@ namespace Tanker
                 case "mimic": return Hex("8f6f3f");
                 case "armor": return Hex("55608f");
                 case "lich": return Hex("4f8f6a");
+                case "ooze": return Hex("c8c05a");
+                case "silencer": return Hex("3f4a7a");
+                case "gazer": return Hex("8f8f9a");
+                case "piercer": return Hex("7a5a3a");
+                case "effigy": return Hex("a88a5a");
+                case "leech": return Hex("7a4f9a");
+                case "rat": return Hex("6f7a4a");
+                case "zealot": return Hex("9a3a3a");
+                case "bramble": return Hex("4f7a3a");
+                case "breaker": return Hex("6a6a7a");
+                case "mirror": return Hex("7aa8c8");
+                case "burrower": return Hex("8a7a5a");
+                case "rot": return Hex("5a7a5a");
+                case "twin": return Hex("8a5a7a");
+                case "sentinel": return Hex("7a7a8a");
+                case "brood": return Hex("6a3a5a");
+                case "colossus": return Hex("8a8a9a");
+                case "wyrm": return Hex("9a4a2a");
+                case "lancer": return Hex("6a8aa8");
+                case "venom": return Hex("5aa85a");
+                case "druid": return Hex("7ac87a");
+                case "titan": return Hex("8a9aa8");
+                case "arbalest": return Hex("a88a5a");
+                case "monk": return Hex("c8c8b8");
+                case "seer": return Hex("9a8ac8");
+                case "squire": return Hex("8a9ac8");
                 default: return Hex("6a8f4f");
             }
         }
@@ -456,6 +498,8 @@ namespace Tanker
                 cardTexts[i].text = Cards.NameOf(card)
                     + "\n<size=19>" + BadgeOf(card.Type) + "</size>"
                     + "\n\n<size=23>" + Cards.ShortDesc(card) + "</size>";
+                if (i < mgr.Hand.Count && i == mgr.SealedCard) cardTexts[i].color = Hex("ff6b6b");
+                else if (i < cardTexts.Length) cardTexts[i].color = Color.white;
                 cardBtns[i].interactable = player && mgr.CardPlayable(i);
                 UiKit.SetSelected(cardBtns[i], mgr.PendingCard == i || mgr.PlannedCard == i);
             }
@@ -504,6 +548,8 @@ namespace Tanker
             else if (u.Team == Team.Enemy && u.TauntTurns > 0) v.Status.text = Loc.F("st.taunted", u.TauntTurns);
             else if (u.Team == Team.Enemy && u.Stunned) v.Status.text = Loc.T("st.stunned");
             else if (mgr.PlannedTarget == u && mgr.PlannedCard >= 0) v.Status.text = Loc.F("st.cardPlanned", Cards.NameOf(mgr.Hand[mgr.PlannedCard]));
+            else if (u.Poison > 0) v.Status.text = Loc.F("st.poison", u.Poison);
+            else if (u.Petrified) v.Status.text = Loc.T("pop.petrified");
             else if (u.ShieldCharges > 0) v.Status.text = Loc.F("st.shielded", u.ShieldCharges);
             else if (u.IsTank && mgr.Bracing) v.Status.text = Loc.T("st.bracing");
             else if (u.Shaken) v.Status.text = Loc.T("st.shaken");
@@ -518,6 +564,12 @@ namespace Tanker
             else if (u.Pack) v.Status.text = Loc.T("st.pack");
             else if (u.DamageCap > 0) v.Status.text = Loc.F("st.cap", u.DamageCap);
             else if (u.BountyGold > 0) v.Status.text = Loc.F("st.bounty", u.BountyGold);
+            else if (u.Pierce) v.Status.text = Loc.T("st.pierce");
+            else if (u.Reflector) v.Status.text = Loc.T("st.reflect");
+            else if (u.HealBlock) v.Status.text = Loc.T("st.healblock");
+            else if (u.Splitter) v.Status.text = Loc.T("st.split");
+            else if (u.CounterOnce) v.Status.text = Loc.T("st.mirror");
+            else if (u.DeathBuff) v.Status.text = Loc.T("st.deathbuff");
             else if (u.Ai == AiKind.EnemyHealer) v.Status.text = Loc.T("st.enemyHealer");
             else v.Status.text = "";
 
@@ -634,6 +686,51 @@ namespace Tanker
                 return;
             }
 
+            if (e.Ai == AiKind.Sealer)
+            {
+                label.text = mgr.IsTauntedNow(e) ? Loc.T("intent.curseWasted") : Loc.T("intent.seal");
+                label.color = Hex("8f9aff");
+                return;
+            }
+            if (e.Ai == AiKind.Gazer)
+            {
+                if (mgr.IsTauntedNow(e)) { label.text = Loc.T("intent.curseWasted"); label.color = Hex("bfbfcf"); return; }
+                var pt = e.CurseIntent;
+                label.text = Loc.F("intent.petrify", pt != null ? pt.Name : "-");
+                label.color = Hex("bfbfcf");
+                if (pt != null && posOf.ContainsKey(pt)) DrawLine(pair[0], posOf[e], posOf[pt], Hex("bfbfcf"));
+                return;
+            }
+            if (e.Ai == AiKind.Dispeller)
+            {
+                label.text = mgr.IsTauntedNow(e) ? Loc.T("intent.curseWasted") : Loc.T("intent.dispel");
+                label.color = Hex("ff9a9a");
+                return;
+            }
+            if (e.Ai == AiKind.Rotmancer)
+            {
+                label.text = mgr.IsTauntedNow(e) ? Loc.T("intent.curseWasted") : Loc.T("intent.rot");
+                label.color = Hex("9ac89a");
+                return;
+            }
+            if (e.Hidden)
+            {
+                label.text = Loc.T("intent.hidden");
+                label.color = Hex("bfa87a");
+                return;
+            }
+            if (e.Ai == AiKind.Sentinel && e.WakeTimer > 0)
+            {
+                label.text = Loc.F("intent.wake", e.WakeTimer);
+                label.color = Hex("d8a5ff");
+                return;
+            }
+            if (e.Env)
+            {
+                label.text = Loc.F("intent.env", mgr.EnemyPowPublic(e));
+                label.color = Hex("9fd86a");
+                return;
+            }
             if (e.Ai == AiKind.Thief)
             {
                 if (mgr.IsTauntedNow(e)) { label.text = Loc.T("intent.curseWasted"); label.color = Hex("ffd75e"); return; }

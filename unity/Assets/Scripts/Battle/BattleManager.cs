@@ -46,6 +46,26 @@ namespace Tanker
         public bool RetainHand;                        // 재정비: 이번 턴 손패를 버리지 않음
         public int BonusDraw;                          // 재정비+: 다음 드로우 추가
         public int BonusGold;                          // 도적 처치 골드·도굴꾼 회수 — 승리 보상에 합산
+        // ---- v1.0 카드 상태 ----
+        public int BarricadeTurns, BarricadeAmt;       // 방벽: 지속 턴 동안 아군 전원 감산
+        public int VowTurns;                           // 서약: 지속 턴 동안 매 턴 탱커 회복
+        public int AegisTurns, AegisCap;               // 수호 방벽: 지속 턴 동안 탱커 한 방 상한
+        public int UndyingHp;                          // 불굴: 치명 피해를 이 HP로 버팀 (0 = 없음)
+        public int GrudgeNext;                         // 원한: 다음 턴 아군 전원 공격 증가분
+        public int CounterMult;                        // 반격 태세: 이번 턴 배수 (0 = 없음)
+        int counterHits; Unit counterLast;             // 반격 집계
+        public Unit WarsongTarget; public int WarsongMult;
+        public Unit BlessTarget;                       // 완전 방어 (이번 턴 피해 0)
+        public int InspireAmt;                         // 격려: 이번 턴 아군 전원 공격 +
+        public int VanguardAmt, RearguardAmt;          // 진형 카드
+        public int FortressAlly; public bool FortressActive;
+        public Unit SilenceTarget;                     // 침묵: 그 적의 특수 능력 이번 턴 무효
+        public Unit StudyTarget; public int StudyReduce, StudyTurns;
+        public bool InvulnTurn;                        // 최후의 저항: 이번 턴 탱커 무적
+        public int SealedCard = -1;                    // 주술 방해자: 이번 턴 사용 불가 카드 인덱스
+        public bool HealBlockedTurn;                   // 부패 술사: 이번 턴 회복 무효
+        bool extraPlay;                                // 각성: 이번 턴 카드 한 장 더
+        bool grudgeArmed, grudgePlus; int grudgeTaken; // 원한: 이번 턴 받은 피해 → 다음 턴 화력
         int bracedTaken;
 
         public int RedirectedSaved, MitigatedSaved;
@@ -109,6 +129,17 @@ namespace Tanker
                 e.SelfShield = d.SelfShield;
                 e.Pack = d.Pack;
                 e.Leap = d.Leap;
+                e.Pierce = d.Pierce;
+                e.Reflector = d.Reflector;
+                e.HealBlock = d.HealBlock;
+                e.Splitter = d.Splitter;
+                e.Dormant = d.Dormant;
+                e.DeathBuff = d.DeathBuff;
+                e.Env = d.Env;
+                e.CounterOnce = d.CounterOnce;
+                e.PoisonHit = d.PoisonHit;
+                if (d.Dormant) e.Hp = 0;                       // 분열 대기체 — 부모가 죽은 다음 턴에 일어난다
+                if (d.Ai == AiKind.Sentinel) e.WakeTimer = b.sentinelWake;
                 e.BountyGold = d.BountyGold;
                 e.DamageCap = d.DamageCap;
                 if (d.SelfShield) e.ShieldCharges = 1;
@@ -138,9 +169,23 @@ namespace Tanker
             ShufflePile(drawPile);
             DrawHand();
 
+            // v1.0 개전 유물
+            if (run.Has(RelicId.StoneHeart)) { BarricadeTurns = b.relicStoneHeart; BarricadeAmt = b.barricadeAmt; }
+            if (run.Has(RelicId.HolyWater))
+                foreach (var a in Allies) { a.Shaken = false; a.Poison = 0; }
+            if (run.Has(RelicId.SilverBell)) DrawOne();
+            if (run.Has(RelicId.BoneWhistle))
+                foreach (var e in Enemies) if (e.Alive && !BossImmune(e)) { e.Stunned = true; break; }
+
             RollIntents();
             StateVersion++;
             Log = Loc.T("log.t1");
+        }
+
+        /// 즉시 드로우 — 정찰·군율 등 (손패 상한은 두지 않는다: 카드 자원 축)
+        void BonusDrawNow(int n)
+        {
+            for (int i = 0; i < n; i++) DrawOne();
         }
 
         void ShufflePile(List<Card> pile)
@@ -154,6 +199,22 @@ namespace Tanker
 
         public int DrawCount => drawPile.Count;
         public int DiscardCount => discardPile.Count;
+
+        /// 카드 1장 드로우 — 뽑을 더미가 비면 버린 더미를 섞는다 (손패 상한 5)
+        bool DrawOne()
+        {
+            if (Hand.Count >= 5) return false;
+            if (drawPile.Count == 0)
+            {
+                if (discardPile.Count == 0) return false;
+                drawPile.AddRange(discardPile);
+                discardPile.Clear();
+                ShufflePile(drawPile);
+            }
+            Hand.Add(drawPile[drawPile.Count - 1]);
+            drawPile.RemoveAt(drawPile.Count - 1);
+            return true;
+        }
 
         void DrawHand(int target = -1)
         {
@@ -179,6 +240,25 @@ namespace Tanker
         {
             foreach (var a in Allies) if (a.Role == Role.Healer && a.Alive) return a;
             return null;
+        }
+
+        /// 살아있는 아군 중 해당 특성 보유자가 있는가 (예측·해소 공용)
+        bool HasLivingTrait(Trait t)
+        {
+            foreach (var a in Allies) if (a.Alive && a.Trait == t) return true;
+            return false;
+        }
+
+        /// 창병이 지키는 전열 아군 — 결정론: 전열 비탱커 중 HP 최저 (창병 자신 제외)
+        Unit LancerGuardTarget()
+        {
+            Unit lancer = null;
+            foreach (var a in Allies) if (a.Alive && a.Trait == Trait.LongReach) { lancer = a; break; }
+            if (lancer == null) return null;
+            Unit best = null;
+            foreach (var a in Allies)
+                if (a.Alive && !a.IsTank && a != lancer && RowOf(a) == 0 && (best == null || a.Hp < best.Hp)) best = a;
+            return best;
         }
 
         public Unit StrongestAttacker()
@@ -277,14 +357,21 @@ namespace Tanker
         /// 확정 연산 순서 (v0.9): 기본공격 + 진형 + 군기 → 위축 절반(진짜 절반) → 배율 특성 → 기세 가산
         int AllyDamage(Unit a, bool shaken, int momentum)
         {
-            int d = a.Power;
-            // 진형: 근접 클래스는 전열 +, 후열 - (원거리는 무관)
-            if (!a.IsTank && !a.RangedClass)
-                d += a.Row == 0 ? Balance.I.rowFrontBonus : -Balance.I.rowBackPenalty;
+            int d = a.Power + a.Retaliation + a.PowerBonus;                   // 거인 피격 누적·일시 증가
+            // 진형: 근접 클래스는 전열 +, 후열 - (원거리·장창은 무관)
+            if (!a.IsTank && !a.RangedClass && a.Trait != Trait.LongReach)
+                d += RowOf(a) == 0 ? Balance.I.rowFrontBonus : -Balance.I.rowBackPenalty;
             if (!a.IsTank && run != null && run.Formation == 2) d += Balance.I.formAtkBonus; // 공격 진형
             if (Turn == 1 && run != null && run.Has(RelicId.WarBanner)) d += Balance.I.relicWarBanner; // 군기
+            if (run != null && run.Has(RelicId.BattleDrum)) d += Balance.I.relicBattleDrum;            // 전투 북
+            if (run != null && run.Has(RelicId.BloodPact)) d += Balance.I.relicBloodPactAtk;           // 피의 계약
+            if (Turn == 1 && run != null && run.Has(RelicId.SharpStone)) d *= 2;                       // 숫돌 — 첫 턴 2배
+            if (!a.IsTank && RowOf(a) == 0) d += VanguardNow;                 // 선봉: 전열 화력
+            d += InspireNow + GrudgeNext;                                     // 격려·원한
             if (shaken) d /= 2;                                               // 위축 = 이번 행동 전체 절반
             d = Mathf.Max(1, d);
+            if (a.Trait == Trait.Focus && PlannedCard < 0) d *= 2;            // 수도승: 카드를 안 쓴 턴
+            if (WarsongPreview == a) d *= WarsongMultNow;                     // 속공
             if (a.Trait == Trait.Frenzy && a.Hp * 2 <= a.MaxHp) d *= 2;       // 광전사: 반피 이하 2배
             if (a.Trait == Trait.FullHpDouble && a.Hp >= a.MaxHp) d *= 2;     // 문지기: 풀피 2배
             if (a.Trait == Trait.FirstStrike && Turn == 1) d *= 2;            // 암살자: 1턴 선제 2배
@@ -321,6 +408,27 @@ namespace Tanker
             var b = Balance.I;
             string notice = null;
             Unit packTarget = null; // 늑대 무리 — 같은 사냥감을 함께 문다 (v0.9)
+
+            // 분열체 각성 — 지난 턴에 죽은 분열 슬라임 자리에서 절반 개체 2마리가 일어난다 (예고 후 행동)
+            foreach (var e in Enemies)
+            {
+                if (!e.SplitPending) continue;
+                e.SplitPending = false;
+                int woke = 0;
+                foreach (var c in Enemies)
+                {
+                    if (woke >= 2) break;
+                    if (!c.Dormant || c.Alive) continue;
+                    c.Dormant = false;
+                    c.Hp = c.MaxHp;
+                    woke++;
+                }
+                if (woke > 0) notice = Loc.F("log.split", e.Name, woke);
+            }
+            // 상태 초기화 — 이번 턴 카드 봉인·석화·회복 무효는 매 턴 새로 정해진다
+            SealedCard = -1;
+            HealBlockedTurn = false;
+            foreach (var a in Allies) a.Petrified = false;
             foreach (var e in Enemies)
             {
                 e.Charging = false; e.AoeIntent = false; e.CurseIntent = null; e.HealIntent = null;
@@ -344,6 +452,66 @@ namespace Tanker
                     case AiKind.Bomber:
                         e.Intent = null;
                         e.BombTimer--; // 표시: 남은 턴, 0이면 이번 해소에 폭발
+                        break;
+                    // ---- v1.0 신규 적 행동 ----
+                    case AiKind.Sealer:
+                        e.Intent = null;
+                        // 손패 1장 봉인 — 결정론: 손패 크기 기준 회전 (턴마다 다른 카드)
+                        if (Hand.Count > 0 && e.TauntTurns == 0) SealedCard = (Turn - 1) % Hand.Count;
+                        break;
+                    case AiKind.Gazer:
+                        e.Intent = null;
+                        if (e.TauntTurns == 0)
+                        {
+                            // 석화 — 결정론: 살아있는 공격수 중 공격력 최고 (없으면 최저 HP 비탱커)
+                            var pz = StrongestAttacker() ?? LowestNonTank();
+                            if (pz != null && !pz.IsTank) { pz.Petrified = true; e.CurseIntent = pz; }
+                        }
+                        break;
+                    case AiKind.Dispeller:
+                        e.Intent = null;
+                        break;
+                    case AiKind.Rotmancer:
+                        e.Intent = null;
+                        if (e.TauntTurns == 0) HealBlockedTurn = true; // 이번 턴 회복 무효 (예고)
+                        break;
+                    case AiKind.Burrower:
+                        // 홀수 턴 잠복(무행동·피해 무효) / 짝수 턴 강타
+                        e.Hidden = (e.Step % 2 == 1);
+                        e.Intent = e.Hidden ? null : (StrongestAttackerFor(e) ?? LowestNonTankFor(e));
+                        break;
+                    case AiKind.Sentinel:
+                        if (e.WakeTimer > 0) { e.WakeTimer--; e.Intent = null; e.Charging = true; }
+                        else e.Intent = StrongestAttackerFor(e) ?? LowestNonTankFor(e);
+                        break;
+                    case AiKind.TwinBlade:
+                        // 짝이 죽으면 광분 — 배수는 EnemyPow에서 계산 (예측·해소 공용)
+                        e.Intent = StrongestAttackerFor(e) ?? LowestNonTankFor(e);
+                        break;
+                    case AiKind.BroodBoss:
+                        var bn = CheckEnrage(e, b.broodEnrageHp, 0, Loc.F("log.enrageBrood", e.Name));
+                        if (bn != null) { notice = bn; e.Step = 1; }
+                        int bp = (e.Step - 1) % 3;
+                        if (!e.Enraged && bp == 0) { e.Intent = null; e.Charging = true; }   // 산란(각성 전 준비)
+                        else if (bp == 1 || (e.Enraged && e.Step % 2 == 1)) e.AoeIntent = true;
+                        else e.Intent = SmartBackliner(e);
+                        break;
+                    case AiKind.ColossusBoss:
+                        var cn = CheckEnrage(e, b.colossusEnrageHp, 0, Loc.F("log.enrageColossus", e.Name));
+                        if (cn != null) { notice = cn; e.Step = 1; }
+                        int cp = (e.Step - 1) % 3;
+                        if (!e.Enraged && cp == 0) { e.Intent = null; e.Charging = true; }
+                        else if (cp == 1) e.AoeIntent = true;
+                        else e.Intent = StrongestAttacker() ?? LowestNonTank();
+                        break;
+                    case AiKind.WyrmBoss:
+                        var wn = CheckEnrage(e, b.wyrmEnrageHp, 0, Loc.F("log.enrageWyrm", e.Name));
+                        if (wn != null) { notice = wn; e.Step = 1; }
+                        int wp = (e.Step - 1) % 3;
+                        if (wp == 0) e.AoeIntent = true;                       // 화염 브레스 — 탱커 포함 전원
+                        else if (wp == 1) e.Intent = StrongestAttacker() ?? LowestNonTank(); // 꼬리 강타
+                        else if (!e.Enraged) { e.Intent = null; e.Hidden = true; }           // 비행 — 이번 턴 회피
+                        else e.AoeIntent = true;                                             // 격노: 비행 대신 브레스
                         break;
                     case AiKind.Thief:
                         e.Intent = null; // 골드 노림 — 인텐트 라벨 별도 처리
@@ -436,11 +604,52 @@ namespace Tanker
         public bool IsTauntedNow(Unit e) => e.TauntTurns > 0
             || (PlannedType == CardType.Taunt && PlannedTarget == e)
             || PlannedType == CardType.WarCry; // 도발 함성 예약 = 전원 도발 — 프리뷰도 같은 세계를 본다
-        public bool IsStunnedNow(Unit e) => e.Stunned || (PlannedType == CardType.Shove && PlannedTarget == e && !BossImmune(e));
+        public bool IsStunnedNow(Unit e) => e.Stunned || e.Feinted || e.Hidden
+            || (PlannedType == CardType.Shove && PlannedTarget == e && !BossImmune(e))
+            || (PlannedType == CardType.Feint && PlannedTarget == e); // 교란은 보스에게도 통한다
 
-        /// 적 공격력 — Shove+ 위축이면 다음 행동 절반 (예측·해소 공용)
-        int EnemyPow(Unit e) => e.Shaken ? e.Power / 2 : e.Power;
-        int EnemyAoePow(Unit e) => e.Shaken ? e.AoePower / 2 : e.AoePower;
+        /// 적 공격력 — 위축 절반, 쌍둥이 광분 2배, 유언 버프·교란 반동 가산 (예측·해소 공용)
+        int EnemyPowRaw(Unit e)
+        {
+            int p = e.Power + e.PowerBonus + e.FeintBonus;
+            if (e.Ai == AiKind.TwinBlade)
+            {
+                bool alone = true;
+                foreach (var o in Enemies) if (o != e && o.Alive && o.Ai == AiKind.TwinBlade) alone = false;
+                if (alone) p *= 2;
+            }
+            return p;
+        }
+        int EnemyPow(Unit e) => e.Shaken ? EnemyPowRaw(e) / 2 : EnemyPowRaw(e);
+        public int EnemyPowPublic(Unit e) => EnemyPow(e);   // UI 표시용 (환경 피해 등)
+        int EnemyAoePow(Unit e) => e.Shaken ? (e.AoePower + e.PowerBonus) / 2 : e.AoePower + e.PowerBonus;
+
+        // ---- v1.0 예약 반영 헬퍼 (프리뷰·해소 공용) ----
+        public Unit BlessPreview => BlessTarget ?? (PlannedType == CardType.Bless ? PlannedTarget : null);
+        Unit RepositionPreview => PlannedType == CardType.Reposition ? PlannedTarget : null;
+        Unit WarsongPreview => WarsongTarget ?? (PlannedType == CardType.Warsong ? PlannedTarget : null);
+        int WarsongMultNow => WarsongTarget != null ? WarsongMult
+            : PlannedType == CardType.Warsong ? (PlannedPlus ? Balance.I.warsongMultPlus : Balance.I.warsongMult) : 1;
+        int InspireNow => InspireAmt > 0 ? InspireAmt
+            : PlannedType == CardType.Inspire ? (PlannedPlus ? Balance.I.inspireAtkPlus : Balance.I.inspireAtk) : 0;
+        int VanguardNow => VanguardAmt > 0 ? VanguardAmt
+            : PlannedType == CardType.Vanguard ? (PlannedPlus ? Balance.I.vanguardAtkPlus : Balance.I.vanguardAtk) : 0;
+        int RearguardNow => RearguardAmt > 0 ? RearguardAmt
+            : PlannedType == CardType.Rearguard ? (PlannedPlus ? Balance.I.rearguardReducePlus : Balance.I.rearguardReduce) : 0;
+        int FortressNow => FortressActive ? FortressAlly
+            : PlannedType == CardType.Fortress ? (PlannedPlus ? Balance.I.fortressAllyPlus : Balance.I.fortressAlly) : 0;
+        bool FortressOn => FortressActive || PlannedType == CardType.Fortress;
+        int RepositionGuardNow => PlannedType == CardType.Reposition ? (PlannedPlus ? Balance.I.repositionGuardPlus : Balance.I.repositionGuard) : 0;
+        bool InvulnNow => InvulnTurn || (PlannedType == CardType.LastStand && Tank.Hp * 2 <= Tank.MaxHp);
+        Unit SilencePreview => SilenceTarget ?? (PlannedType == CardType.Silence ? PlannedTarget : null);
+        int StudyReduceNow(Unit e) => (StudyTarget == e ? StudyReduce : 0)
+            + (PlannedType == CardType.Study && PlannedTarget == e ? (PlannedPlus ? Balance.I.studyReducePlus : Balance.I.studyReduce) : 0);
+        int AegisCapNow => AegisTurns > 0 ? AegisCap : 0;
+        int BarricadeNow => BarricadeTurns > 0 ? BarricadeAmt
+            : PlannedType == CardType.Barricade ? (PlannedPlus ? Balance.I.barricadeAmtPlus : Balance.I.barricadeAmt) : 0;
+
+        /// 진형 행 — 예약 교대 반영 (프리뷰·해소 공용)
+        int RowOf(Unit a) => RepositionPreview == a ? (a.Row == 0 ? 1 : 0) : a.Row;
 
         /// 이번 턴 탱커 직격 반사량 — 예약 가시 태세 포함 (프리뷰 공용)
         int ThornsNow => (ThornStanceAmt > 0 ? ThornStanceAmt
@@ -473,7 +682,7 @@ namespace Tanker
             if (IsTauntedNow(enemy)) return Tank;
             if (enemy.AoeIntent || enemy.Intent == null) return null;
             var cover = CoverPreview;
-            if (cover != null && enemy.Intent == cover) return Tank;
+            if (cover != null && enemy.Intent == cover && !enemy.Pierce) return Tank; // 관통 적은 엄호 무시
             return enemy.Intent;
         }
 
@@ -483,11 +692,13 @@ namespace Tanker
         int AuraBonus(Unit attacker, HashSet<Unit> killedPreview = null)
         {
             if (attacker.Team != Team.Enemy) return 0;
+            if (run != null && run.Has(RelicId.Lodestone)) return 0;   // 자철석 — 적 오라·무리 무효
             bool AliveNow(Unit e) => e.Alive && (killedPreview == null || !killedPreview.Contains(e));
+            var sil = SilencePreview;
             int bonus = 0;
             if (!attacker.Aura)
-                foreach (var e in Enemies) if (AliveNow(e) && e.Aura) { bonus += Balance.I.chiefAura; break; }
-            if (attacker.Pack)
+                foreach (var e in Enemies) if (AliveNow(e) && e.Aura && e != sil) { bonus += Balance.I.chiefAura; break; }
+            if (attacker.Pack && attacker != sil)
                 foreach (var e in Enemies) if (AliveNow(e) && e.Pack && e != attacker) bonus += Balance.I.packBonus;
             return bonus;
         }
@@ -505,9 +716,28 @@ namespace Tanker
             if (PhalanxNow && receiver.Team == Team.Ally) dmg = Mathf.Max(0, dmg - PhalanxNowAmt);
             if (run != null && run.Formation == 3 && receiver.Team == Team.Ally && !receiver.IsTank)
                 dmg = Mathf.Max(0, dmg - Balance.I.formGuardReduce); // 보호 진형 — 동료 피해 감산
+            // v1.0: 지속 방벽 / 요새화 / 후위 정렬 / 종사 / 창병 / 교대 보호 / 관찰 / 완전 방어
+            if (receiver.Team == Team.Ally && BarricadeNow > 0) dmg = Mathf.Max(0, dmg - BarricadeNow);
+            if (receiver.Team == Team.Ally && FortressOn && !receiver.IsTank) dmg = Mathf.Max(0, dmg - FortressNow);
+            if (receiver.Team == Team.Ally && !receiver.IsTank && RowOf(receiver) == 1 && RearguardNow > 0)
+                dmg = Mathf.Max(0, dmg - RearguardNow);
+            if (receiver.IsTank && HasLivingTrait(Trait.Bulwark)) dmg = Mathf.Max(0, dmg - 1);          // 종사
+            if (run != null && receiver.Team == Team.Ally && !receiver.IsTank && run.Has(RelicId.ThickHide))
+                dmg = Mathf.Max(0, dmg - Balance.I.relicThickHide);                                      // 두꺼운 가죽
+            if (run != null && viaTaunt && run.Has(RelicId.RunedChain))
+                dmg = Mathf.Max(0, dmg - Balance.I.relicRunedChain);                                     // 룬 사슬
+            if (receiver.Team == Team.Ally && !receiver.IsTank && RowOf(receiver) == 0 && LancerGuardTarget() == receiver)
+                dmg = Mathf.Max(0, dmg - Balance.I.lancerGuard);                                        // 창병 보호
+            if (RepositionPreview == receiver) dmg = Mathf.Max(0, dmg - RepositionGuardNow);
+            dmg = Mathf.Max(0, dmg - StudyReduceNow(enemy));
+            if (BlessPreview == receiver) return 0;                                                     // 완전 방어
+            if (receiver.IsTank && InvulnNow) return 0;                                                 // 최후의 저항
             if (OathNow && receiver.IsTank) dmg = Mathf.Max(0, dmg - Balance.I.oathReduce);
-            if (receiver.IsTank && BracingNow) dmg /= 2;
+            if (receiver.IsTank && (BracingNow || FortressOn)) dmg /= 2;                                // 버티기·요새화
             if (receiver.IsTank && IronWillNow) dmg = Mathf.Min(dmg, IronWillNowCap); // 철의 의지: 한 방 상한
+            if (receiver.IsTank && AegisCapNow > 0) dmg = Mathf.Min(dmg, AegisCapNow); // 수호 방벽: 지속 상한
+            if (receiver.IsTank && run != null && run.Has(RelicId.TowerShield))
+                dmg = Mathf.Min(dmg, Balance.I.relicTowerShield);                       // 타워 실드: 상시 한 방 상한
             return dmg;
         }
 
@@ -531,7 +761,9 @@ namespace Tanker
         {
             bool covered = CoverPreview == backliner;
             var receiver = covered ? Tank : backliner;
-            return ComputeDamage(enemy, receiver, EnemyAoePow(enemy), false, covered, KilledPreview);
+            int raw = EnemyAoePow(enemy);
+            if (run != null && run.Has(RelicId.WardStone)) raw = Mathf.Max(0, raw - Balance.I.relicWardStone);
+            return ComputeDamage(enemy, receiver, raw, false, covered, KilledPreview);
         }
 
         /// 이번 턴 이 유닛이 받을 예상 총 피해 (예약·선행 처치·기절·방패·수호 낙인 분담 반영)
@@ -563,6 +795,14 @@ namespace Tanker
             {
                 if (!e.Alive || e.Charging || killed.Contains(e) || IsStunnedNow(e)) continue;
                 if (e.Ai == AiKind.ShamanCurse || e.Ai == AiKind.EnemyHealer || e.Ai == AiKind.Thief) continue;
+                if (e.Ai == AiKind.Sealer || e.Ai == AiKind.Gazer || e.Ai == AiKind.Dispeller
+                    || e.Ai == AiKind.Rotmancer) continue;              // 공격하지 않는 특수형
+                if (e.Env)
+                {
+                    // 가시 덩굴 — 도발·엄호 무시 환경 피해 (전원 고정)
+                    if (u.Alive) sum += EnemyPow(e);
+                    continue;
+                }
 
                 // 가시 반사 사망 미러 — 탱커를 때리다 죽으면 남은 타격이 중단된다 (해소와 같은 순서)
                 int eHp = hpAfter.TryGetValue(e, out var hv) ? hv : e.Hp;
@@ -599,7 +839,7 @@ namespace Tanker
                 if (recvS == null) continue;
                 int hits = e.Ai == AiKind.SpiderDouble ? 2 : 1;
                 bool taunted = IsTauntedNow(e);
-                bool viaCover = !taunted && recvS.IsTank && CoverPreview != null && e.Intent == CoverPreview;
+                bool viaCover = !taunted && recvS.IsTank && CoverPreview != null && e.Intent == CoverPreview && !e.Pierce;
                 for (int hi = 0; hi < hits; hi++)
                 {
                     // 거미 2타 + 엄호: 둘째 타는 원 대상에게 — 탱커 몫은 첫 타만
@@ -646,11 +886,37 @@ namespace Tanker
             var shield = new Dictionary<Unit, int>();
             foreach (var a in Allies) { shaken[a] = a.Shaken; momentum[a] = a.Momentum; lastT[a] = a.LastTarget; }
             foreach (var e in Enemies) if (e.Alive && e.ShieldCharges > 0) shield[e] = e.ShieldCharges;
-            int HpOf(Unit e) => hp.TryGetValue(e, out var v) && !killed.Contains(e) ? v : 0;
+            var counter = new Dictionary<Unit, bool>();
+            foreach (var e in Enemies) if (e.Alive && e.CounterOnce) counter[e] = true; // 거울 정령 반사 1회
+            int HpOf(Unit e) => hp.TryGetValue(e, out var v) && !killed.Contains(e) && !e.Hidden ? v : 0;
 
             foreach (var a in Allies)
             {
-                if (!a.Alive || a.Role != Role.Attacker) continue;
+                if (!a.Alive || a.Role != Role.Attacker || a.Petrified) continue; // 석화 = 이번 턴 행동 취소
+
+                // 노병 사수 — 두 적을 각각 절반 피해로 동시 사격
+                if (a.Trait == Trait.Volley)
+                {
+                    int half = Mathf.Max(1, AllyDamage(a, shaken[a], momentum[a]) / 2);
+                    shaken[a] = false;
+                    Unit prevT = null;
+                    for (int v = 0; v < 2; v++)
+                    {
+                        Unit vt = null;
+                        foreach (var e in Enemies)
+                        {
+                            if (HpOf(e) <= 0 || e == prevT || e.Hidden) continue;
+                            if (vt == null || HpOf(e) < HpOf(vt)) vt = e;
+                        }
+                        if (vt == null) break;
+                        prevT = vt;
+                        if (counter.TryGetValue(vt, out var cv) && cv) { counter[vt] = false; continue; }
+                        if (shield.TryGetValue(vt, out var sv) && sv > 0) { shield[vt] = sv - 1; continue; }
+                        hp[vt] -= CapTo(vt, half);
+                        if (hp[vt] <= 0) killed.Add(vt);
+                    }
+                    continue;
+                }
 
                 if (a.Trait == Trait.ArcaneNova && Turn % Balance.I.novaEvery == 0)
                 {
@@ -679,6 +945,7 @@ namespace Tanker
                         dmg = AllyDamage(a, shaken[a], momentum[a]);
                     }
                     shaken[a] = false;
+                    if (counter.TryGetValue(tgt, out var cc) && cc) { counter[tgt] = false; break; }     // 거울 정령 미러
                     if (shield.TryGetValue(tgt, out var sc) && sc > 0) { shield[tgt] = sc - 1; break; } // 방패병 미러
                     hp[tgt] -= CapTo(tgt, dmg);
                     bool died = hp[tgt] <= 0;
@@ -701,9 +968,21 @@ namespace Tanker
         public bool CardPlayable(int idx)
         {
             if (idx < 0 || idx >= Hand.Count) return false;
-            if (Hand[idx].Type == CardType.Devotion)
-                return Tank.Hp > (Hand[idx].Plus ? Balance.I.devotionAmountPlus : Balance.I.devotionAmount);
-            return true;
+            if (idx == SealedCard) return false;                        // 주술 방해자 봉인
+            var c = Hand[idx];
+            var b = Balance.I;
+            switch (c.Type)
+            {
+                case CardType.Devotion: return Tank.Hp > (c.Plus ? b.devotionAmountPlus : b.devotionAmount);
+                case CardType.Awaken: return Tank.Hp > (c.Plus ? b.awakenCostPlus : b.awakenCost);
+                case CardType.LastStand: return Tank.Hp * 2 <= Tank.MaxHp; // 저체력 전용
+                case CardType.Sacrifice:
+                {
+                    foreach (var a in Allies) if (a.Alive && !a.IsTank && a.Hp < a.MaxHp) return Tank.Hp > 1;
+                    return false;
+                }
+                default: return true;
+            }
         }
 
         public void PressCard(int idx)
@@ -753,6 +1032,15 @@ namespace Tanker
             if (Phase != Phase.Player) return;
             PendingCard = -1;
             CommitPlanned();
+            if (extraPlay)
+            {
+                // 각성 — 이번 턴 카드를 한 장 더 사용한다 (턴당 1장 규칙을 깨는 유일 경로)
+                extraPlay = false;
+                PlannedCard = -1; PlannedTarget = null;
+                StateVersion++;
+                Log = Loc.T("log.extraPlay");
+                return;
+            }
             StartCoroutine(Resolve());
         }
 
@@ -861,6 +1149,161 @@ namespace Tanker
                         if (plus) BonusDraw = 1;
                         Popup?.Invoke(Tank, Loc.T("pop.regroup"), new Color(0.8f, 0.9f, 1f));
                         break;
+                    // ---- v1.0 신규 카드 ----
+                    case CardType.Reposition:
+                        if (PlannedTarget != null && PlannedTarget.Alive && !PlannedTarget.IsTank)
+                        {
+                            PlannedTarget.Row = PlannedTarget.Row == 0 ? 1 : 0;
+                            Popup?.Invoke(PlannedTarget, Loc.T("pop.reposition"), new Color(0.6f, 0.85f, 1f));
+                        }
+                        break;
+                    case CardType.Vanguard:
+                        VanguardAmt = plus ? b.vanguardAtkPlus : b.vanguardAtk;
+                        break;
+                    case CardType.Rearguard:
+                        RearguardAmt = plus ? b.rearguardReducePlus : b.rearguardReduce;
+                        break;
+                    case CardType.Barricade:
+                        BarricadeAmt = plus ? b.barricadeAmtPlus : b.barricadeAmt;
+                        BarricadeTurns = plus ? b.barricadeTurnsPlus : b.barricadeTurns;
+                        Popup?.Invoke(Tank, Loc.T("pop.barricade"), new Color(0.8f, 0.8f, 0.9f));
+                        break;
+                    case CardType.Vow:
+                        VowTurns = plus ? b.vowTurnsPlus : b.vowTurns;
+                        Popup?.Invoke(Tank, Loc.T("pop.vow"), new Color(1f, 0.9f, 0.6f));
+                        break;
+                    case CardType.Aegis:
+                        AegisCap = b.aegisCap;
+                        AegisTurns = plus ? b.aegisTurnsPlus : b.aegisTurns;
+                        break;
+                    case CardType.Awaken:
+                        int cost = plus ? b.awakenCostPlus : b.awakenCost;
+                        if (Tank.Hp > cost)
+                        {
+                            Tank.Hp -= cost;
+                            extraPlay = true; // 이번 턴 카드 한 장 더
+                            Popup?.Invoke(Tank, Loc.T("pop.awaken"), new Color(1f, 0.7f, 0.9f));
+                        }
+                        break;
+                    case CardType.Scout:
+                        BonusDrawNow(plus ? b.scoutDrawPlus : b.scoutDraw);
+                        break;
+                    case CardType.Discipline:
+                        // 버린 더미를 즉시 뽑을 더미로 섞어 넣는다 (리셔플 타이밍 조작)
+                        if (discardPile.Count > 0)
+                        {
+                            drawPile.AddRange(discardPile);
+                            discardPile.Clear();
+                            ShufflePile(drawPile);
+                        }
+                        if (plus) BonusDrawNow(1);
+                        break;
+                    case CardType.Feint:
+                        if (PlannedTarget != null && PlannedTarget.Alive)
+                        {
+                            PlannedTarget.Feinted = true;
+                            if (!plus) PlannedTarget.FeintBonus = b.feintBackfire; // 강화 시 반동 없음
+                            Popup?.Invoke(PlannedTarget, Loc.T("pop.feint"), new Color(0.9f, 0.9f, 1f));
+                        }
+                        break;
+                    case CardType.Purge:
+                        foreach (var al in Allies)
+                        {
+                            if (!al.Alive) continue;
+                            al.Shaken = false; al.Poison = 0; al.Petrified = false;
+                            if (plus) al.Hp = Mathf.Min(al.MaxHp, al.Hp + HealAmount(b.purgePlusHeal));
+                        }
+                        Popup?.Invoke(Tank, Loc.T("pop.purge"), new Color(1f, 1f, 0.7f));
+                        break;
+                    case CardType.Antidote:
+                        if (PlannedTarget != null && PlannedTarget.Alive)
+                        {
+                            int cured = PlannedTarget.Poison;
+                            PlannedTarget.Poison = 0;
+                            PlannedTarget.Shaken = false;
+                            int amt = HealAmount(plus ? cured * 2 : cured);
+                            if (amt > 0) PlannedTarget.Hp = Mathf.Min(PlannedTarget.MaxHp, PlannedTarget.Hp + amt);
+                            Popup?.Invoke(PlannedTarget, Loc.T("pop.antidote"), new Color(0.6f, 1f, 0.7f));
+                        }
+                        break;
+                    case CardType.Silence:
+                        if (PlannedTarget != null && PlannedTarget.Alive)
+                        {
+                            SilenceTarget = PlannedTarget;
+                            if (plus) PlannedTarget.Stunned = !BossImmune(PlannedTarget); // 강화: 침묵 + 무력화
+                            Popup?.Invoke(PlannedTarget, Loc.T("pop.silence"), new Color(0.7f, 0.7f, 0.9f));
+                        }
+                        break;
+                    case CardType.Warsong:
+                        if (PlannedTarget != null && PlannedTarget.Alive)
+                        {
+                            WarsongTarget = PlannedTarget;
+                            WarsongMult = plus ? b.warsongMultPlus : b.warsongMult;
+                            if (plus) PlannedTarget.Shaken = false;
+                            Popup?.Invoke(PlannedTarget, Loc.T("pop.warsong"), new Color(1f, 0.8f, 0.4f));
+                        }
+                        break;
+                    case CardType.Bless:
+                        if (PlannedTarget != null && PlannedTarget.Alive)
+                        {
+                            BlessTarget = PlannedTarget;
+                            if (plus) PlannedTarget.Shaken = false;
+                            Popup?.Invoke(PlannedTarget, Loc.T("pop.bless"), new Color(1f, 1f, 0.8f));
+                        }
+                        break;
+                    case CardType.Inspire:
+                        InspireAmt = plus ? b.inspireAtkPlus : b.inspireAtk;
+                        break;
+                    case CardType.Sacrifice:
+                        if (PlannedTarget != null && PlannedTarget.Alive)
+                        {
+                            int need = PlannedTarget.MaxHp - PlannedTarget.Hp;
+                            int pay = plus ? need / 2 : need;
+                            if (need > 0 && Tank.Hp > pay)
+                            {
+                                Tank.Hp -= pay;
+                                PlannedTarget.Hp = PlannedTarget.MaxHp;
+                                Popup?.Invoke(PlannedTarget, "+" + need, new Color(0.55f, 1f, 0.55f));
+                                Popup?.Invoke(Tank, "-" + pay, new Color(1f, 0.84f, 0.37f));
+                            }
+                        }
+                        break;
+                    case CardType.Counter:
+                        CounterMult = plus ? b.counterMultPlus : b.counterMult;
+                        counterHits = 0; counterLast = null;
+                        break;
+                    case CardType.Fortress:
+                        FortressActive = true;
+                        FortressAlly = plus ? b.fortressAllyPlus : b.fortressAlly;
+                        break;
+                    case CardType.Undying:
+                        UndyingHp = plus ? b.undyingHpPlus : b.undyingHp;
+                        Popup?.Invoke(Tank, Loc.T("pop.undying"), new Color(1f, 0.9f, 0.5f));
+                        break;
+                    case CardType.Grudge:
+                        grudgeArmed = true; grudgePlus = plus; grudgeTaken = 0;
+                        break;
+                    case CardType.Barter:
+                        int gold = plus ? b.barterGoldPlus : b.barterGold;
+                        BonusGold += gold;
+                        Popup?.Invoke(Tank, "+" + gold + "G", new Color(1f, 0.84f, 0.37f));
+                        break;
+                    case CardType.Study:
+                        if (PlannedTarget != null && PlannedTarget.Alive)
+                        {
+                            StudyTarget = PlannedTarget;
+                            StudyReduce = plus ? b.studyReducePlus : b.studyReduce;
+                            StudyTurns = 2; // 2턴간 그 적을 관찰 — 피해 감소 + 대상 고정
+                            Popup?.Invoke(PlannedTarget, Loc.T("pop.study"), new Color(0.8f, 0.9f, 1f));
+                        }
+                        break;
+                    case CardType.LastStand:
+                        if (Tank.Hp * 2 <= Tank.MaxHp)
+                        {
+                            InvulnTurn = true;
+                            Popup?.Invoke(Tank, Loc.T("pop.laststand"), new Color(1f, 0.95f, 0.6f));
+                        }
+                        break;
                     case CardType.WarCry:
                         // 낡은 깃발(도발 +1턴)은 도발 함성에도 적용 — TauntDuration이 이미 유물 보정 포함
                         int cryTurns = b.warCryTurns + (TauntDuration - b.tauntDuration);
@@ -897,11 +1340,23 @@ namespace Tanker
             return false;
         }
 
+        /// 회복량 보정 — 흡혈 정령(생존 시 절반)·부패 술사(이번 턴 무효). 모든 회복 경로가 이 함수를 쓴다.
+        public int HealAmount(int raw)
+        {
+            if (HealBlockedTurn) return 0;
+            foreach (var e in Enemies) if (e.Alive && e.HealBlock && SilenceTarget != e) return raw / 2;
+            return raw;
+        }
+
         /// 단일 타격 적용 — 방패/감산/버티기까지. 실제 받은 피해 반환.
         int ApplyHit(Unit attacker, Unit planned, Unit receiver, int baseDmg, bool viaTaunt, bool viaCover)
         {
             int rawDmg = baseDmg + AuraBonus(attacker); // 보호 점수는 오라·무리 포함 실위협 기준
-            if (receiver.ShieldCharges > 0)
+            if (receiver.ShieldCharges > 0 && attacker.Pierce)
+            {
+                Popup?.Invoke(receiver, Loc.T("pop.pierce"), new Color(1f, 0.55f, 0.55f)); // 관통 — 방패 무시
+            }
+            else if (receiver.ShieldCharges > 0)
             {
                 receiver.ShieldCharges--;
                 Strike?.Invoke(attacker, receiver);
@@ -931,8 +1386,9 @@ namespace Tanker
             receiver.Hp = Mathf.Max(0, receiver.Hp - dmg);
             if (receiver.IsTank && Bracing) bracedTaken += dmg;
 
-            // 가시 태세·가시 방패 유물 — 탱커를 때린 적에게 반사 (v0.7의 유일한 능동 반격)
-            int tankThorns = ThornStanceAmt + (run != null && run.Has(RelicId.ThornShield) ? Balance.I.relicThornShield : 0);
+            // 가시 태세·가시 방패·거울 판금 — 탱커를 때린 적에게 반사
+            int tankThorns = ThornStanceAmt + (run != null && run.Has(RelicId.ThornShield) ? Balance.I.relicThornShield : 0)
+                           + (run != null && run.Has(RelicId.MirrorPlate) && receiver.IsTank ? Mathf.Max(1, dmg * Balance.I.relicMirrorPlate / 100) : 0);
             if (receiver.IsTank && dmg > 0 && attacker.Team == Team.Enemy && tankThorns > 0 && attacker.Alive)
             {
                 attacker.Hp = Mathf.Max(0, attacker.Hp - CapTo(attacker, tankThorns));
@@ -959,7 +1415,78 @@ namespace Tanker
             }
             if (!receiver.IsTank && dmg > 0)
             { receiver.Shaken = true; Popup?.Invoke(receiver, Loc.T("pop.shaken"), new Color(1f, 0.6f, 0.9f)); }
+            // v1.0: 반격 집계 · 거인 피격 누적 · 역병 독 · 불굴 보험
+            if (receiver.IsTank && dmg > 0) { counterHits++; counterLast = attacker; grudgeTaken += dmg; }
+            if (dmg > 0 && receiver.Trait == Trait.Retaliate) receiver.Retaliation += Balance.I.titanRetaliate;
+            if (dmg > 0 && attacker.PoisonHit && SilenceTarget != attacker)
+            {
+                receiver.Poison += Balance.I.ratPoison;
+                Popup?.Invoke(receiver, Loc.F("pop.poison", receiver.Poison), new Color(0.6f, 1f, 0.5f));
+            }
+            if (receiver.IsTank && receiver.Hp <= 0 && UndyingHp > 0)
+            {
+                receiver.Hp = UndyingHp;
+                UndyingHp = 0;
+                AudioKit.Guard();
+                Popup?.Invoke(receiver, Loc.T("pop.undying"), new Color(1f, 0.9f, 0.5f));
+                Log = Loc.T("log.undying");
+            }
             return dmg;
+        }
+
+        /// 아군 1타를 적에게 적용 — 방패·거울 반사·상한·독·전가·가시·처치까지 (해소 전용, 연출 없음)
+        void AllyStrike(Unit a, Unit target, int dmg)
+        {
+            Strike?.Invoke(a, target);
+            if (target.CounterOnce)
+            {
+                target.CounterOnce = false;
+                a.Hp = Mathf.Max(1, a.Hp - Mathf.Max(1, dmg / 2)); // 거울 정령: 무효화 + 절반 반사 (죽이진 않음)
+                AudioKit.Guard();
+                Popup?.Invoke(target, Loc.T("pop.mirror"), new Color(0.7f, 0.9f, 1f));
+                Log = Loc.F("log.mirror", target.Name, a.Name);
+                return;
+            }
+            if (target.ShieldCharges > 0)
+            {
+                target.ShieldCharges--;
+                AudioKit.Guard();
+                Popup?.Invoke(target, Loc.T("pop.blocked"), new Color(0.7f, 0.85f, 1f));
+                Log = Loc.F("log.blocked", target.Name);
+                return;
+            }
+            AudioKit.Hit();
+            dmg = CapTo(target, dmg);
+            target.Hp = Mathf.Max(0, target.Hp - dmg);
+            Popup?.Invoke(target, "-" + dmg, Color.white);
+            AfterAllyHit(a, target, dmg);
+        }
+
+        /// 아군 타격 직후 공용 처리 — 독 부여·피해 전가·가시 반사·처치 (예측과 같은 규칙)
+        void AfterAllyHit(Unit a, Unit target, int dmg)
+        {
+            if (a.Trait == Trait.Poison && dmg > 0)
+            {
+                target.Poison += Balance.I.venomPoison;
+                Popup?.Invoke(target, Loc.F("pop.poison", target.Poison), new Color(0.6f, 1f, 0.5f));
+            }
+            else if (dmg > 0 && run != null && run.Has(RelicId.SerpentRing)) target.Poison += Balance.I.relicSerpentRing;
+            // 저주 인형 — 받은 피해 절반을 최고 HP 아군에게 전가 (결정론, 아군을 죽이지는 않는다)
+            if (target.Reflector && dmg > 1 && SilenceTarget != target)
+            {
+                Unit victim = null;
+                foreach (var al in Allies) if (al.Alive && !al.IsTank && (victim == null || al.Hp > victim.Hp)) victim = al;
+                victim ??= Tank;
+                int share = Mathf.Max(1, dmg / 2);
+                victim.Hp = Mathf.Max(1, victim.Hp - share);
+                Popup?.Invoke(victim, Loc.F("pop.transfer", share), new Color(1f, 0.5f, 0.8f));
+            }
+            if (target.Alive && target.Thorns > 0)
+            {
+                a.Hp = Mathf.Max(1, a.Hp - target.Thorns);
+                Popup?.Invoke(a, Loc.F("pop.thorns", target.Thorns), new Color(0.95f, 0.6f, 0.35f));
+            }
+            if (!target.Alive) OnEnemyKilled(a, target);
         }
 
         IEnumerator Resolve()
@@ -974,6 +1501,37 @@ namespace Tanker
             foreach (var a in Allies)
             {
                 if (!a.Alive || a.Role != Role.Attacker) continue;
+                if (a.Petrified)
+                {
+                    Log = Loc.F("log.petrified", a.Name);
+                    Popup?.Invoke(a, Loc.T("pop.petrified"), new Color(0.75f, 0.75f, 0.8f));
+                    yield return quick;
+                    continue;
+                }
+
+                // 노병 사수 — 두 적 동시 사격 (각각 절반)
+                if (a.Trait == Trait.Volley)
+                {
+                    int half = Mathf.Max(1, AllyDamage(a) / 2);
+                    a.Shaken = false;
+                    Unit prevT = null;
+                    for (int v = 0; v < 2; v++)
+                    {
+                        Unit vt = null;
+                        foreach (var e2 in Enemies)
+                        {
+                            if (!e2.Alive || e2 == prevT || e2.Hidden) continue;
+                            if (vt == null || e2.Hp < vt.Hp) vt = e2;
+                        }
+                        if (vt == null) break;
+                        prevT = vt;
+                        AllyStrike(a, vt, half);
+                        yield return quick;
+                        if (!AnyEnemyAlive()) { Win(); yield break; }
+                    }
+                    Log = Loc.F("log.volley", a.Name, half);
+                    continue;
+                }
 
                 // 마법사 — N턴마다 비전 폭발: 모든 적에게 절반 피해 (원거리 마법이라 가시 반사 면제)
                 if (a.Trait == Trait.ArcaneNova && Turn % Balance.I.novaEvery == 0)
@@ -1004,8 +1562,8 @@ namespace Tanker
                 {
                     int dmg = AllyDamage(a);
                     var target = a.Trait == Trait.Sniper
-                        ? HighestPowerEnemy(u => u.Alive ? u.Hp : 0)   // 궁수: 최고 위협 저격
-                        : PickAttackTarget(dmg, u => u.Alive ? u.Hp : 0, u => u.ShieldCharges);
+                        ? HighestPowerEnemy(u => u.Alive && !u.Hidden ? u.Hp : 0)   // 궁수: 최고 위협 저격
+                        : PickAttackTarget(dmg, u => u.Alive && !u.Hidden ? u.Hp : 0, u => u.ShieldCharges);
                     if (target == null) break;
                     if (a.Trait == Trait.Momentum)
                     {
@@ -1015,6 +1573,16 @@ namespace Tanker
                     }
                     a.Shaken = false;
                     Strike?.Invoke(a, target);
+                    if (target.CounterOnce)
+                    {
+                        target.CounterOnce = false;
+                        a.Hp = Mathf.Max(1, a.Hp - Mathf.Max(1, dmg / 2));
+                        AudioKit.Guard();
+                        Popup?.Invoke(target, Loc.T("pop.mirror"), new Color(0.7f, 0.9f, 1f));
+                        Log = Loc.F("log.mirror", target.Name, a.Name);
+                        yield return quick;
+                        break;
+                    }
                     if (target.ShieldCharges > 0)
                     {
                         // 해골 방패병 — 방패가 한 방을 막는다
@@ -1031,6 +1599,21 @@ namespace Tanker
                     Popup?.Invoke(target, "-" + dmg, Color.white);
                     Log = Loc.F("log.allyHit", a.Name, target.Name, dmg);
 
+                    // 독 부여·피해 전가·가시 반사 (공용 후처리 — 처치 판정은 아래 chained 계산 뒤 별도)
+                    if (a.Trait == Trait.Poison && dmg > 0)
+                    {
+                        target.Poison += Balance.I.venomPoison;
+                        Popup?.Invoke(target, Loc.F("pop.poison", target.Poison), new Color(0.6f, 1f, 0.5f));
+                    }
+                    if (target.Reflector && dmg > 1 && SilenceTarget != target)
+                    {
+                        Unit victim = null;
+                        foreach (var al in Allies) if (al.Alive && !al.IsTank && (victim == null || al.Hp > victim.Hp)) victim = al;
+                        victim ??= Tank;
+                        int share = Mathf.Max(1, dmg / 2);
+                        victim.Hp = Mathf.Max(1, victim.Hp - share);
+                        Popup?.Invoke(victim, Loc.F("pop.transfer", share), new Color(1f, 0.5f, 0.8f));
+                    }
                     // 가시 반사 — 살아있는 골렘을 때리면 공격자가 아프다 (반사는 쓰러뜨리진 못함)
                     if (target.Alive && target.Thorns > 0)
                     {
@@ -1095,6 +1678,51 @@ namespace Tanker
                     continue;
                 }
 
+                if (e.Ai == AiKind.Sealer || e.Ai == AiKind.Gazer || e.Ai == AiKind.Rotmancer)
+                {
+                    // 봉인·석화·부패는 RollIntents에서 이미 적용(예고) — 해소는 연출만. 도발되면 낭비
+                    if (e.TauntTurns > 0) Log = Loc.F("log.curseWasted", e.Name);
+                    else if (e.Ai == AiKind.Sealer) Log = Loc.F("log.seal", e.Name);
+                    else if (e.Ai == AiKind.Gazer) Log = Loc.F("log.petrify", e.Name, e.CurseIntent != null ? e.CurseIntent.Name : "-");
+                    else Log = Loc.F("log.rot", e.Name);
+                    yield return wait;
+                    continue;
+                }
+
+                if (e.Ai == AiKind.Dispeller)
+                {
+                    if (e.TauntTurns > 0) { Log = Loc.F("log.curseWasted", e.Name); yield return wait; continue; }
+                    // 방패 파괴 — 탱커 방패·맹세·방벽·수호 방벽을 해제
+                    Tank.ShieldCharges = 0; OathTurns = 0; BarricadeTurns = 0; AegisTurns = 0;
+                    AudioKit.Guard();
+                    Popup?.Invoke(Tank, Loc.T("pop.dispel"), new Color(1f, 0.6f, 0.6f));
+                    Log = Loc.F("log.dispel", e.Name);
+                    yield return wait;
+                    continue;
+                }
+
+                if (e.Hidden)
+                {
+                    Log = Loc.F("log.hidden", e.Name);
+                    yield return wait;
+                    continue;
+                }
+
+                if (e.Ai == AiKind.BroodBoss && e.Charging)
+                {
+                    // 산란 — 대기 중인 새끼를 깨운다 (예고된 차징 턴에 발동)
+                    int woke = 0;
+                    foreach (var c in Enemies)
+                    {
+                        if (woke >= 2) break;
+                        if (!c.Dormant || c.Alive) continue;
+                        c.Dormant = false; c.Hp = c.MaxHp; woke++;
+                    }
+                    Log = woke > 0 ? Loc.F("log.spawn", e.Name, woke) : Loc.F("log.charging", e.Name);
+                    yield return wait;
+                    continue;
+                }
+
                 if (e.Ai == AiKind.Thief)
                 {
                     if (e.TauntTurns > 0) { Log = Loc.F("log.curseWasted", e.Name); yield return wait; continue; }
@@ -1144,6 +1772,22 @@ namespace Tanker
                     continue;
                 }
 
+                if (e.Env)
+                {
+                    Log = Loc.F("log.env", e.Name);
+                    foreach (var al in Allies)
+                    {
+                        if (!al.Alive) continue;
+                        int envDmg = EnemyPow(e);
+                        if (BlessTarget == al || (al.IsTank && InvulnTurn)) continue;
+                        al.Hp = Mathf.Max(al.IsTank ? 0 : 1, al.Hp - envDmg); // 동료는 환경 피해로 죽지 않는다
+                        Popup?.Invoke(al, "-" + envDmg, new Color(0.8f, 1f, 0.6f));
+                    }
+                    yield return wait;
+                    if (AnyAllyDead()) { Lose(); yield break; }
+                    continue;
+                }
+
                 if (e.AoeIntent && e.TauntTurns == 0)
                 {
                     foreach (var b in Allies)
@@ -1171,7 +1815,7 @@ namespace Tanker
                     Unit receiver;
                     bool viaCover = false;
                     if (taunted) receiver = Tank;
-                    else if (CoverTarget != null && planned == CoverTarget && hi == 0) { receiver = Tank; viaCover = true; } // 엄호는 첫 타만
+                    else if (CoverTarget != null && planned == CoverTarget && hi == 0 && !e.Pierce) { receiver = Tank; viaCover = true; } // 엄호는 첫 타만, 관통은 무시
                     else receiver = planned;
                     if (!receiver.Alive) receiver = Tank;
                     ApplyHit(e, planned, receiver, EnemyPow(e), taunted && receiver.IsTank, viaCover);
@@ -1182,10 +1826,64 @@ namespace Tanker
                 e.Shaken = false; // 위축은 다음 행동 1회만
             }
 
+            // 독 진행 — 적·아군 공용, 중첩당 고정 피해 (적 페이즈 종료 시점)
+            bool anyPoison = false;
+            foreach (var u in Enemies)
+            {
+                if (!u.Alive || u.Poison <= 0) continue;
+                anyPoison = true;
+                int pd = u.Poison * Balance.I.poisonTick;
+                u.Hp = Mathf.Max(0, u.Hp - pd);
+                Popup?.Invoke(u, "-" + pd, new Color(0.6f, 1f, 0.5f));
+                u.Poison--;
+                if (!u.Alive) OnEnemyKilled(Tank, u);
+            }
+            foreach (var u in Allies)
+            {
+                if (!u.Alive || u.Poison <= 0) continue;
+                anyPoison = true;
+                int pd = u.Poison * Balance.I.poisonTick;
+                u.Hp = Mathf.Max(u.IsTank ? 0 : 1, u.Hp - pd);
+                Popup?.Invoke(u, "-" + pd, new Color(0.6f, 1f, 0.5f));
+                u.Poison--;
+            }
+            if (anyPoison)
+            {
+                Log = Loc.T("log.poisonTick");
+                yield return wait;
+                if (AnyAllyDead()) { Lose(); yield break; }
+                if (!AnyEnemyAlive()) { Win(); yield break; }
+            }
+
+            // 반격 태세 — 이번 턴 맞은 횟수 × 배수를 마지막 공격자에게
+            if (CounterMult > 0 && counterHits > 0 && counterLast != null && counterLast.Alive)
+            {
+                int cd = counterHits * CounterMult;
+                counterLast.Hp = Mathf.Max(0, counterLast.Hp - CapTo(counterLast, cd));
+                AudioKit.Hit();
+                Popup?.Invoke(counterLast, "-" + cd, new Color(1f, 0.8f, 0.4f));
+                Log = Loc.F("log.counter", counterLast.Name, cd);
+                if (!counterLast.Alive) OnEnemyKilled(Tank, counterLast);
+                yield return wait;
+                if (!AnyEnemyAlive()) { Win(); yield break; }
+            }
+
+            // 불굴의 서약 — 지속 턴 동안 매 턴 탱커 회복
+            if (VowTurns > 0)
+            {
+                int vh = HealAmount(Balance.I.vowHeal);
+                if (vh > 0)
+                {
+                    Tank.Hp = Mathf.Min(Tank.MaxHp, Tank.Hp + vh);
+                    AudioKit.Heal();
+                    Popup?.Invoke(Tank, "+" + vh, new Color(0.55f, 1f, 0.55f));
+                }
+            }
+
             // 버티기 후불 회복
             if (Bracing && bracedTaken > 0)
             {
-                int recover = Mathf.Min(BraceCap > 0 ? BraceCap : BraceHeal, bracedTaken);
+                int recover = HealAmount(Mathf.Min(BraceCap > 0 ? BraceCap : BraceHeal, bracedTaken));
                 AudioKit.Heal();
                 Tank.Hp = Mathf.Min(Tank.MaxHp, Tank.Hp + recover);
                 Popup?.Invoke(Tank, Loc.F("pop.brace", recover), new Color(1f, 0.84f, 0.37f));
@@ -1195,8 +1893,32 @@ namespace Tanker
 
             // 힐러 v2 — 백라이너 전담. 적의 최대 한 방에 죽을 수 있는(위험권) 아군 중 가장 가치 큰(공격력 높은)
             // 대상을 우선하고, 위험권이 없으면 HP 최저를 채운다.
+            foreach (var healerAny in Allies)
+            {
+                if (!healerAny.Alive || healerAny.Role != Role.Healer || healerAny.Petrified) continue;
+                if (healerAny.Trait != Trait.GroveHeal) continue;
+                // 드루이드 — 동료 전원 소량 회복 (광역 힐)
+                int gh = HealAmount(healerAny.Shaken ? healerAny.Power / 2 : healerAny.Power);
+                healerAny.Shaken = false;
+                if (gh <= 0) continue;
+                bool anyHealed = false;
+                foreach (var al in Allies)
+                {
+                    if (!al.Alive || al.IsTank || al.Hp >= al.MaxHp) continue;
+                    al.Hp = Mathf.Min(al.MaxHp, al.Hp + gh);
+                    Popup?.Invoke(al, "+" + gh, new Color(0.55f, 1f, 0.55f));
+                    anyHealed = true;
+                }
+                if (anyHealed)
+                {
+                    AudioKit.Heal();
+                    Log = Loc.F("log.grove", healerAny.Name, gh);
+                    yield return wait;
+                }
+            }
+
             var healer = HealerUnit();
-            if (healer != null)
+            if (healer != null && !healer.Petrified && healer.Trait != Trait.GroveHeal)
             {
                 int maxHit = 0;
                 foreach (var e in Enemies)
@@ -1213,8 +1935,9 @@ namespace Tanker
                 }
                 if (target != null)
                 {
-                    int amount = healer.Shaken ? healer.Power / 2 : healer.Power;
+                    int amount = HealAmount(healer.Shaken ? healer.Power / 2 : healer.Power);
                     healer.Shaken = false;
+                    if (amount <= 0) { yield return quick; goto healDone; }
                     Strike?.Invoke(healer, target);
                     AudioKit.Heal();
                     target.Hp = Mathf.Min(target.MaxHp, target.Hp + amount);
@@ -1223,6 +1946,7 @@ namespace Tanker
                     yield return wait;
                 }
             }
+            healDone:;
 
             if (!AnyEnemyAlive()) { Win(); yield break; }
 
@@ -1232,7 +1956,22 @@ namespace Tanker
             IronWillActive = false; IronWillPlus = false; MarkTarget = null; MarkPlus = false;
             ThornStanceAmt = 0; BraceCap = 0;
             if (OathTurns > 0) OathTurns--;
-            foreach (var e in Enemies) { e.Stunned = false; if (e.TauntTurns > 0) e.TauntTurns--; }
+            // v1.0 상태 정리 — 이번 턴 카드 효과 소멸, 지속 효과 감소
+            VanguardAmt = 0; RearguardAmt = 0; InspireAmt = 0;
+            WarsongTarget = null; WarsongMult = 1; BlessTarget = null;
+            FortressActive = false; FortressAlly = 0; CounterMult = 0; counterHits = 0; counterLast = null;
+            InvulnTurn = false; SilenceTarget = null;
+            GrudgeNext = grudgeArmed ? (grudgePlus ? grudgeTaken : grudgeTaken / 2) : 0; // 원한: 받은 만큼 다음 턴 화력
+            grudgeArmed = false; grudgeTaken = 0;
+            if (BarricadeTurns > 0) BarricadeTurns--;
+            if (VowTurns > 0) VowTurns--;
+            if (AegisTurns > 0) AegisTurns--;
+            if (StudyTurns > 0 && --StudyTurns == 0) { StudyTarget = null; StudyReduce = 0; }
+            foreach (var e in Enemies)
+            {
+                e.Stunned = false; e.Feinted = false; e.FeintBonus = 0;
+                if (e.TauntTurns > 0) e.TauntTurns--;
+            }
             foreach (var a in Allies) a.ShieldCharges = 0;
             if (!RetainHand) { discardPile.AddRange(Hand); Hand.Clear(); } // 재정비: 손패 유지
             RetainHand = false;
