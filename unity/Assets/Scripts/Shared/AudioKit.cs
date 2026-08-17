@@ -46,11 +46,16 @@ namespace Tanker
             bgmSrc.volume = BgmVolume * 0.5f;
         }
 
-        /// BGM 샘플(~21초)은 워커 스레드에서 합성 — 첫 화면 메인 스레드 정지 방지.
-        /// AudioClip 생성은 메인 스레드 전용이라 호스트가 완성 버퍼를 회수해 마무리한다.
+        /// BGM 우선순위: ①Resources/Audio/bgm-dungeon (Suno 등 외부 트랙 — 파일만 넣으면 적용)
+        /// ②없으면 절차 합성 (워커 스레드 — 첫 화면 메인 스레드 정지 방지).
         public static void PlayBgm()
         {
             Ensure();
+            if (bgmClip == null)
+            {
+                var external = Resources.Load<AudioClip>("Audio/bgm-dungeon");
+                if (external != null) bgmClip = external;
+            }
             if (bgmClip != null)
             {
                 if (bgmSrc.clip != bgmClip) { bgmSrc.clip = bgmClip; bgmSrc.Play(); }
