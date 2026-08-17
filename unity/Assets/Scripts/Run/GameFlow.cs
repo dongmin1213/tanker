@@ -28,6 +28,8 @@ namespace Tanker
             ShowTitle();
         }
 
+        bool timingActive; // 런 진행 중에만 플레이 시간 계측 (타이틀·엔딩 화면 제외)
+
         void Update()
         {
             if (animImg != null && animFrames != null)
@@ -35,6 +37,7 @@ namespace Tanker
                 animT += Time.deltaTime;
                 animImg.sprite = animFrames[(int)(animT * 5f) % animFrames.Length];
             }
+            if (timingActive && run != null) run.PlaySeconds += Time.unscaledDeltaTime;
         }
 
         void Clear()
@@ -109,6 +112,7 @@ namespace Tanker
 
         public void ShowTitle()
         {
+            timingActive = false;
             currentScreen = ShowTitle;
             Clear();
             Background(0.35f);
@@ -140,6 +144,7 @@ namespace Tanker
             PlayerPrefs.SetInt("runs.started", PlayerPrefs.GetInt("runs.started", 0) + 1);
             RunSave.Clear();
             run = new RunState(seed, firstRun);
+            timingActive = true;
             shop = RunData.MakeShop();
             Debug.Log("[Flow] 런 시작 — 시드 " + seed + ", 파티 " + run.Party.Count + "명" + (firstRun ? " (첫 원정 고정)" : ""));
             if (firstRun) HelpUI.Open(); // 첫 원정 — 게임 방법 자동 안내
@@ -151,6 +156,7 @@ namespace Tanker
             var loaded = RunSave.Load();
             if (loaded == null) { ShowTitle(); return; }
             run = loaded;
+            timingActive = true;
             run.EnsureRows(); // 구버전 저장 — 배치 기본값 이관 (v0.9)
             shop = RunData.MakeShop();
             Debug.Log("[Flow] 이어하기 — 시드 " + run.Seed + ", 층 " + run.FloorReached);
@@ -285,7 +291,9 @@ namespace Tanker
                 Loc.T("map.pick"), 26, UiKit.Hex("ffd75e"), center: true);
         }
 
-        static Vector2 NodePos(MapNode n) => new Vector2(n.X, -570 + n.Floor * 132);
+        // 층수는 balance 소관 — 층이 늘면 간격을 압축해 파티 스트립(y 638)과 겹치지 않게
+        static Vector2 NodePos(MapNode n) =>
+            new Vector2(n.X, -570 + n.Floor * Mathf.Min(132f, 1040f / (Balance.I.mapFloors - 1)));
 
         void DrawMiniAlly(float x, float y, string sheet, string name, int hp, int maxHp)
         {
@@ -939,6 +947,7 @@ namespace Tanker
 
         public void ShowEnding(bool won)
         {
+            timingActive = false; // 계측 종료 — 엔딩 화면 체류는 플레이 시간이 아니다
             RunSave.Clear(); // 런 종료 — 이어하기 소멸
             currentScreen = () => ShowEnding(won);
             Clear();
@@ -959,7 +968,8 @@ namespace Tanker
                 Loc.F("end.act", run.Act + 1) + "\n" +
                 Loc.F("end.stats", run.FloorReached, Balance.I.mapFloors, run.BattlesWon,
                       run.TotalRedirected, run.TotalMitigated, run.Gold)
-                + "\n<size=24>" + Loc.F("end.seed", run.Seed) + "</size>", 34, Color.white, center: true);
+                + "\n" + Loc.F("end.time", (int)(run.PlaySeconds / 60), (int)(run.PlaySeconds % 60))
+                + "\n<size=24>" + Loc.F("end.seed", run.Seed) + "</size>", 32, Color.white, center: true);
 
             UiKit.Btn("retry", screen, new Vector2(0, -520), new Vector2(520, 125), Loc.T("end.retry"), () => StartRun(), 40, center: true);
             UiKit.Btn("title", screen, new Vector2(0, -680), new Vector2(520, 110), Loc.T("end.title"), () => ShowTitle(), 38, center: true);

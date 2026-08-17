@@ -90,7 +90,7 @@ namespace Tanker
         public int respiteHeal = 4;
 
         // v0.6 — 분기 맵 (StS식)
-        public int mapFloors = 8;
+        public int mapFloors = 10;
         public int mapNodesMin = 2;       // 중간층 방 수 범위
         public int mapNodesMax = 3;
         public int mapElites = 2;
@@ -166,7 +166,7 @@ namespace Tanker
         public int armorHp = 18; public int armorPower = 4; public int armorDamageCap = 3; // 받는 피해 상한
 
         // v0.8 — 2막·최종 보스 리치 왕
-        public int actStageBonus = 8;      // 2막 스케일 = 층 + 보너스
+        public int actStageBonus = 10;      // 2막 스케일 = 층 + 보너스
         public float descendHeal = 0.25f;  // 심층 진입 시 전원 회복 비율
         public int lichHp = 60;
         public int lichPower = 12;

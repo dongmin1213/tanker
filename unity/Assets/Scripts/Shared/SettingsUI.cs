@@ -39,8 +39,20 @@ namespace Tanker
             UiKit.Label("sfxL", frame, new Vector2(-230, 160), new Vector2(280, 50), Loc.T("set.sfx"), 34, UiKit.Hex("cfc8e8"), TextAnchor.MiddleLeft, center: true);
             UiKit.MakeSlider("sfxS", frame, new Vector2(110, 160), new Vector2(420, 30), AudioKit.SfxVolume, v => AudioKit.SfxVolume = v);
 
+            // 전투 속도 (v0.9) — 해소 연출 대기 단축, 다음 전투부터 적용
+            bool fast = PlayerPrefs.GetInt("speed.fast", 0) == 1;
+            UiKit.Btn("speed", frame, new Vector2(0, 60), new Vector2(680, 90),
+                Loc.T(fast ? "set.speedFast" : "set.speedNormal"), () =>
+                {
+                    PlayerPrefs.SetInt("speed.fast", fast ? 0 : 1);
+                    PlayerPrefs.Save();
+                    Object.Destroy(canvasGo);
+                    openCanvas = null;
+                    Open(onRedraw, onReturnTitle);
+                }, 30, center: true);
+
             // 언어 전환
-            UiKit.Btn("lang", frame, new Vector2(0, 30), new Vector2(680, 100), Loc.T("set.lang"), () =>
+            UiKit.Btn("lang", frame, new Vector2(0, -50), new Vector2(680, 90), Loc.T("set.lang"), () =>
             {
                 Loc.SetLang(Loc.Lang == Loc.KO ? Loc.EN : Loc.KO);
                 Object.Destroy(canvasGo);
@@ -50,13 +62,13 @@ namespace Tanker
             }, 32, center: true);
 
             // 게임 방법 (v0.7 온보딩)
-            UiKit.Btn("howto", frame, new Vector2(0, -90), new Vector2(680, 100), Loc.T("title.help"),
+            UiKit.Btn("howto", frame, new Vector2(0, -160), new Vector2(680, 90), Loc.T("title.help"),
                 () => HelpUI.Open(), 32, center: true);
 
             // 타이틀 복귀 (2단 확인)
             if (onReturnTitle != null)
             {
-                var titleBtn = UiKit.Btn("toTitle", frame, new Vector2(0, -210), new Vector2(680, 100), Loc.T("set.toTitle"), null, 32, center: true);
+                var titleBtn = UiKit.Btn("toTitle", frame, new Vector2(0, -270), new Vector2(680, 90), Loc.T("set.toTitle"), null, 32, center: true);
                 var titleTxt = titleBtn.GetComponentInChildren<Text>();
                 titleBtn.onClick.AddListener(() =>
                 {
@@ -73,7 +85,7 @@ namespace Tanker
                 });
             }
 
-            UiKit.Btn("close", frame, new Vector2(0, -320), new Vector2(420, 110), Loc.T("set.close"),
+            UiKit.Btn("close", frame, new Vector2(0, -400), new Vector2(420, 100), Loc.T("set.close"),
                 () => Object.Destroy(canvasGo), 36, center: true);
         }
     }

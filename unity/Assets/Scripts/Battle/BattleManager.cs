@@ -936,8 +936,10 @@ namespace Tanker
         IEnumerator Resolve()
         {
             Phase = Phase.Resolving;
-            var wait = new WaitForSeconds(0.5f);
-            var quick = new WaitForSeconds(0.35f);
+            // 전투 속도 옵션 — 해소 연출 대기가 체감 길이의 대부분 (설정에서 전환)
+            float sp = PlayerPrefs.GetInt("speed.fast", 0) == 1 ? 0.45f : 1f;
+            var wait = new WaitForSeconds(0.5f * sp);
+            var quick = new WaitForSeconds(0.35f * sp);
 
             // 아군 공격수 페이즈 — 클래스 특성 전면 반영 (PredictKills와 동일 로직)
             foreach (var a in Allies)

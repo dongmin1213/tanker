@@ -48,6 +48,7 @@ namespace Tanker
         public int TotalRedirected, TotalMitigated;
         public int BattlesWon;
         public int BattleIndex;               // 전투 순번 (통계)
+        public float PlaySeconds;             // 실플레이 시간 계측 — "10~30분 세션" 검증용 (v0.9)
 
         // 승리 직후 미수령 보상 체크포인트 — 보상 화면에서 앱이 죽어도 전투를 다시 시키지 않는다
         public int Pending;                   // 0=없음 1=카드 보상 2=엘리트 유물 3=심층 선택

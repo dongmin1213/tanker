@@ -75,6 +75,10 @@ namespace Tanker
             ["set.toTitle"] = new[] { "타이틀 화면으로", "Back to Title" },
             ["set.confirmTitle"] = new[] { "정말요? 진행 중인 원정이 사라져요", "Sure? Your expedition will be lost" },
             ["set.close"] = new[] { "닫기", "Close" },
+            ["set.speedNormal"] = new[] { "전투 속도: 보통 ▸ 빠름", "Battle speed: Normal ▸ Fast" },
+            ["set.speedFast"] = new[] { "전투 속도: 빠름 ▸ 보통", "Battle speed: Fast ▸ Normal" },
+            ["end.time"] = new[] { "플레이 시간: {0}분 {1}초", "Play time: {0}m {1}s" },
+            ["status.time"] = new[] { "플레이 {0}분", "{0} min played" },
 
             // 엔딩 추가
             ["end.retry"] = new[] { "새 원정 시작", "New Expedition" },
