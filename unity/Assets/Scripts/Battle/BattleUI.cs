@@ -222,8 +222,11 @@ namespace Tanker
             }
             else Panel("bgTop", stage, new Vector2(540, 1330), new Vector2(1080, 1180), Hex("1a1626"));
             // 하단 패널 축소 (top 750→620) — 전투 필드 130px 확장 (유저 제안)
-            var bottom = UiKit.FramedPanel("bgBottom", root, new Vector2(540, 95), new Vector2(1120, 1050));
+            // 프레임 9-slice는 1120px로 늘리면 테두리가 검은 띠로 뭉개진다 — 단색 + 크리스프 구분선
+            var bottom = Panel("bgBottom", root, new Vector2(540, 95), new Vector2(1120, 1050), Hex("241d16"));
             bottom.raycastTarget = false;
+            Panel("bottomEdge", root, new Vector2(540, 621), new Vector2(1120, 4), Hex("8a6d3b")).raycastTarget = false;
+            Panel("bottomEdgeLo", root, new Vector2(540, 617), new Vector2(1120, 2), Hex("120e0a")).raycastTarget = false;
 
             turnText = Label("turn", root, new Vector2(540, 1850), new Vector2(1000, 50), "", 40, Color.white, bold: true);
             savedText = Label("saved", root, new Vector2(540, 1790), new Vector2(1000, 40), "", 30, Hex("ffd75e"));
@@ -235,17 +238,17 @@ namespace Tanker
                 if (mgr.Phase != Phase.Player) return; // 해소 중 스냅샷 수치 어긋남 방지
                 if (flowRef != null) DeckViewUI.Open(flowRef.run.Deck, mgr.Hand.Count, mgr.DrawCount, mgr.DiscardCount);
             };
-            var deckBtn = UiKit.Btn("deckView", root, new Vector2(128, 572), new Vector2(196, 52), "", () => openDeck(), 24);
+            var deckBtn = UiKit.Btn("deckView", root, new Vector2(128, 580), new Vector2(196, 52), "", () => openDeck(), 24);
             deckViewText = deckBtn.GetComponentInChildren<Text>();
             if (flowRef != null) deckViewText.text = Loc.F("bt.deckView", flowRef.run.Deck.Count);
-            var statusBtn = UiKit.Btn("status", root, new Vector2(336, 572), new Vector2(180, 52), Loc.T("status.h1"), () =>
+            var statusBtn = UiKit.Btn("status", root, new Vector2(336, 580), new Vector2(180, 52), Loc.T("status.h1"), () =>
             {
                 if (flowRef != null) StatusUI.Open(flowRef.run, mgr); // 전투 중엔 실시간 HP
             }, 24); // 내 상태 — 유물·파티 열람 (v0.8)
             statusText = statusBtn.GetComponentInChildren<Text>();
             // 더미는 우상단 (유저 제안 — 하단 공간 확보)
-            drawText = MakePileBadge("drawPile", new Vector2(902, 572), openDeck);
-            discardText = MakePileBadge("discardPile", new Vector2(1010, 572), openDeck);
+            drawText = MakePileBadge("drawPile", new Vector2(902, 580), openDeck);
+            discardText = MakePileBadge("discardPile", new Vector2(1010, 580), openDeck);
 
             // 예약 상태 요약 — 무엇을 골랐고 누구에게 가는지 (온보딩 크리틱 반영)
             planText = Label("plan", root, new Vector2(540, 176), new Vector2(900, 38), "", 25, Hex("ffd75e"));
@@ -302,7 +305,7 @@ namespace Tanker
             for (int i = 0; i < hs; i++)
             {
                 int idx = i;
-                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(540, 386), new Vector2(cardW, 330), "", () => mgr.PressCard(idx), 30);
+                cardBtns[i] = UiKit.Btn("card" + i, root, new Vector2(540, 380), new Vector2(cardW, 320), "", () => mgr.PressCard(idx), 30);
                 if (UiKit.CardSprite != null) cardBtns[i].GetComponent<Image>().sprite = UiKit.CardSprite; // 카드 전용 프레임
                 cardTexts[i] = cardBtns[i].GetComponentInChildren<Text>();
                 cardTexts[i].horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -429,7 +432,7 @@ namespace Tanker
                 bool has = i < mgr.Hand.Count;
                 cardBtns[i].gameObject.SetActive(has);
                 if (!has) continue;
-                ((RectTransform)cardBtns[i].transform).anchoredPosition = new Vector2(x0 + i * spacing, 386);
+                ((RectTransform)cardBtns[i].transform).anchoredPosition = new Vector2(x0 + i * spacing, 380);
                 var card = mgr.Hand[i];
                 cardTexts[i].text = Cards.NameOf(card)
                     + "\n<size=19>" + BadgeOf(card.Type) + "</size>"

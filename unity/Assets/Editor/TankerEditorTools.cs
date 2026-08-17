@@ -31,7 +31,7 @@ namespace Tanker
             PlayerSettings.productName = "Tanker";
             PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.iOS, "com.dongmin1213.tanker");
             PlayerSettings.bundleVersion = "0.8.0";
-            PlayerSettings.iOS.buildNumber = "9";
+            PlayerSettings.iOS.buildNumber = "10";
             PlayerSettings.iOS.appleDeveloperTeamID = "3N2543B2FD";
             PlayerSettings.iOS.appleEnableAutomaticSigning = true;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
@@ -57,7 +57,11 @@ namespace Tanker
             var sizesType = asm.GetType("UnityEditor.GameViewSizes");
             var singleType = typeof(ScriptableSingleton<>).MakeGenericType(sizesType);
             var instance = singleType.GetProperty("instance").GetValue(null);
-            var group = sizesType.GetMethod("GetGroup").Invoke(instance, new object[] { 0 });
+            // 게임 뷰는 현재 빌드 타깃의 사이즈 그룹을 쓴다 (iOS 타깃에서 0=Standalone에 넣으면 미적용)
+            var groupTypeProp = asm.GetType("UnityEditor.GameView")
+                .GetProperty("currentSizeGroupType", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            int groupType = (int)groupTypeProp.GetValue(null);
+            var group = sizesType.GetMethod("GetGroup").Invoke(instance, new object[] { groupType });
 
             var texts = (string[])group.GetType().GetMethod("GetDisplayTexts").Invoke(group, null);
             int index = -1;
