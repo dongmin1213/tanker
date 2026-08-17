@@ -197,25 +197,46 @@ namespace Tanker
             return best ?? Tank;
         }
 
+        // 진형 후보 집합을 지키는 변형 — 근접 일반 적(FixedDps·브루트)용 (v0.9 전수검사 H-01)
+        Unit StrongestAttackerFor(Unit e)
+        {
+            Unit best = null;
+            foreach (var a in Allies)
+                if (a.Alive && a.Role == Role.Attacker && !a.IsTank && !RowBlocked(e, a)
+                    && (best == null || a.Power > best.Power)) best = a;
+            return best;
+        }
+
+        Unit LowestNonTankFor(Unit e)
+        {
+            Unit best = null;
+            foreach (var a in Allies)
+                if (a.Alive && !a.IsTank && !RowBlocked(e, a) && (best == null || a.Hp < best.Hp)) best = a;
+            return best ?? Tank;
+        }
+
         /// 적 AI v3 — 처치 가능한 백라이너가 있으면 그중 최고 위협을 노리고,
         /// 없으면 직전 턴 자기가 노리던 대상을 제외한 최저 HP (한 명만 계속 두들기는 단조로움 방지 — 유저 피드백).
+        /// 진형 (v0.9): 근접 적은 전열 아군이 살아있으면 전열만 노린다 — 도약·매복 태그는 무시.
+        /// 모든 단일 공격 근접 AI가 이 후보 판정을 공유한다 (AI별 개별 구현 금지 — v0.9 전수검사 H-01)
+        bool RowBlocked(Unit e, Unit target)
+        {
+            if (e.Leap || target.IsTank || target.Row == 0) return false;
+            foreach (var a in Allies)
+                if (a.Alive && !a.IsTank && a.Row == 0) return true; // 전열이 버티는 한 후열은 못 노린다
+            return false;
+        }
+
         Unit SmartBackliner(Unit e)
         {
-            int dmg = e.Ai == AiKind.SpiderDouble ? e.Power * 2 : e.Power;
-            dmg += AuraBonus(e);
+            int per = e.Power + AuraBonus(e);                       // 킬각 추정도 타격당 오라 포함 (M-02)
+            int dmg = e.Ai == AiKind.SpiderDouble ? per * 2 : per;
             var prev = e.Intent; // RollIntents 재할당 전이라 직전 턴 대상이 남아 있다
-
-            // 진형 (v0.9): 근접 적은 전열 아군이 있으면 전열만 노린다 — 도약형(거미·박쥐·늑대)은 무시
-            bool frontOnly = false;
-            if (!e.Leap)
-                foreach (var a in Allies)
-                    if (a.Alive && !a.IsTank && a.Row == 0) { frontOnly = true; break; }
 
             Unit kill = null, low = null, lowAlt = null;
             foreach (var a in Allies)
             {
-                if (!a.Alive || a.IsTank) continue;
-                if (frontOnly && a.Row != 0) continue;
+                if (!a.Alive || a.IsTank || RowBlocked(e, a)) continue;
                 if (a.Hp <= dmg && (kill == null || a.Power > kill.Power)) kill = a;
                 if (low == null || a.Hp < low.Hp) low = a;
                 if (a != prev && (lowAlt == null || a.Hp < lowAlt.Hp)) lowAlt = a;
@@ -241,24 +262,28 @@ namespace Tanker
             return kill ?? focus;
         }
 
-        /// 아군 킬각 우선순위 — 예약 밀치기는 위협 0, 폭발 임박·지휘 오라는 최우선 (예측·해소 공용)
-        int EnemyThreat(Unit e) => (IsStunnedNow(e) || e.Charging ? 0 : 100) + e.Power
-            + (e.Aura ? Balance.I.threatAuraBonus : 0)
-            + (e.Ai == AiKind.Bomber && e.BombTimer <= 1 ? Balance.I.threatBombBonus : 0);
+        /// 아군 킬각 우선순위 — 무력화(기절 예약 포함·차징)면 특수 가중치까지 전부 0 (예측·해소 공용)
+        int EnemyThreat(Unit e)
+        {
+            if (IsStunnedNow(e) || e.Charging) return 0;
+            return 100 + e.Power
+                + (e.Aura ? Balance.I.threatAuraBonus : 0)
+                + (e.Ai == AiKind.Bomber && e.BombTimer <= 1 ? Balance.I.threatBombBonus : 0);
+        }
 
         /// 아군 공격수의 이번 타 피해 — 클래스 특성 전부 반영 (예측·해소 공용)
         int AllyDamage(Unit a) => AllyDamage(a, a.Shaken, a.Momentum);
 
+        /// 확정 연산 순서 (v0.9): 기본공격 + 진형 + 군기 → 위축 절반(진짜 절반) → 배율 특성 → 기세 가산
         int AllyDamage(Unit a, bool shaken, int momentum)
         {
-            int d = shaken ? a.Power / 2 : a.Power;
-            // 진형 (v0.9): 근접 클래스는 전열 +, 후열 - (원거리는 무관) — 배율 특성 전에 적용
+            int d = a.Power;
+            // 진형: 근접 클래스는 전열 +, 후열 - (원거리는 무관)
             if (!a.IsTank && !a.RangedClass)
-            {
-                if (a.Row == 0) d += Balance.I.rowFrontBonus;
-                else d = Mathf.Max(1, d - Balance.I.rowBackPenalty);
-            }
+                d += a.Row == 0 ? Balance.I.rowFrontBonus : -Balance.I.rowBackPenalty;
             if (Turn == 1 && run != null && run.Has(RelicId.WarBanner)) d += Balance.I.relicWarBanner; // 군기
+            if (shaken) d /= 2;                                               // 위축 = 이번 행동 전체 절반
+            d = Mathf.Max(1, d);
             if (a.Trait == Trait.Frenzy && a.Hp * 2 <= a.MaxHp) d *= 2;       // 광전사: 반피 이하 2배
             if (a.Trait == Trait.FullHpDouble && a.Hp >= a.MaxHp) d *= 2;     // 문지기: 풀피 2배
             if (a.Trait == Trait.FirstStrike && Turn == 1) d *= 2;            // 암살자: 1턴 선제 2배
@@ -335,7 +360,7 @@ namespace Tanker
                         e.Intent = h ?? LowestNonTank();
                         break;
                     case AiKind.FixedDps:
-                        e.Intent = StrongestAttacker() ?? LowestNonTank();
+                        e.Intent = StrongestAttackerFor(e) ?? LowestNonTankFor(e); // 근접 — 진형 후보 집합 준수
                         break;
                     case AiKind.LowestBackliner:
                         if (e.Pack)
@@ -390,9 +415,10 @@ namespace Tanker
 
         Unit NextSmashTarget(Unit e)
         {
-            // 백라이너 교대: 최강 공격수 ↔ 힐러(없으면 최저 HP)
-            var strong = StrongestAttacker();
-            var healer = HealerUnit() ?? LowestNonTank();
+            // 백라이너 교대: 최강 공격수 ↔ 힐러(없으면 최저 HP) — 진형 후보 집합 안에서 (브루트도 근접)
+            var strong = StrongestAttackerFor(e);
+            var healerU = HealerUnit();
+            var healer = healerU != null && !RowBlocked(e, healerU) ? healerU : LowestNonTankFor(e);
             var t = e.SmashToDps ? (strong ?? healer) : (healer ?? strong);
             e.SmashToDps = !e.SmashToDps;
             return t ?? Tank;

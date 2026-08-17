@@ -118,6 +118,7 @@ namespace Tanker
             while (Rows.Count < Party.Count)
                 Rows.Add(RunData.Class(Party[Rows.Count]).Ranged ? 1 : 0);
             while (Rows.Count > Party.Count) Rows.RemoveAt(Rows.Count - 1);
+            for (int i = 0; i < Rows.Count; i++) Rows[i] = Rows[i] == 0 ? 0 : 1; // 직렬화 계약 0/1 정규화
         }
 
         /// camp=true(휴식 방)일 때만 물주머니 보너스 — 심층 진입 재정비 등엔 미적용
@@ -164,6 +165,8 @@ namespace Tanker
             if (r == null || r.Map == null || r.Map.Count == 0) return false;
             if (r.Cur < -1 || r.Cur >= r.Map.Count) return false;
             if (r.Party == null || r.PartyHp == null || r.Party.Count != r.PartyHp.Count) return false;
+            for (int i = 0; i < r.PartyHp.Count; i++)
+                if (r.PartyHp[i] <= 0 || r.PartyHp[i] > RunData.Class(r.Party[i]).Hp) return false; // HP 0 부활 차단
             if (r.Deck == null || r.Deck.Count == 0 || r.Relics == null || r.Visited == null) return false;
             if (r.Act < 0 || r.TankHp <= 0) return false;
             foreach (var n in r.Map)
@@ -320,7 +323,7 @@ namespace Tanker
             var b = Balance.I;
             return new List<EnemyPick>
             {
-                new EnemyPick { Key = "unit.goblin", Sheet = "goblin", Hp = b.goblinHp, Power = b.goblinPower, Ai = AiKind.FixedHealer, Cost = 2 },
+                new EnemyPick { Key = "unit.goblin", Sheet = "goblin", Hp = b.goblinHp, Power = b.goblinPower, Ai = AiKind.FixedHealer, Cost = 2, Leap = true },
                 new EnemyPick { Key = "unit.goblin", Sheet = "goblin", Hp = b.goblinHp, Power = b.goblinPower, Ai = AiKind.FixedDps, Cost = 2 },
                 new EnemyPick { Key = "unit.goblin", Sheet = "goblin", Hp = b.goblinHp, Power = b.goblinPower, Ai = AiKind.LowestBackliner, Cost = 2 },
                 new EnemyPick { Key = "unit.archer", Sheet = "archer", Hp = b.archerHp, Power = b.archerPower, Ai = AiKind.FixedHealer, Cost = 2 },

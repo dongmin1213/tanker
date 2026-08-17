@@ -255,15 +255,16 @@ namespace Tanker
 
             // 아군 슬롯 — 탱커 전열 고정 + 동료는 진형(전열=적 쪽, 후열=왼쪽 뒤)대로 배치 (v0.9)
             posOf[mgr.Tank] = new Vector2(400, 1120);
+            // 같은 열 안에서 세로 220+ 간격, x 지그재그 — 스프라이트·라벨 겹침 방지 (v0.9 전수검사 H-02)
             var frontSlots = new[]
             {
-                new Vector2(300, 1330), new Vector2(330, 1550),
-                new Vector2(250, 1170), new Vector2(360, 1710),
+                new Vector2(300, 1340), new Vector2(345, 1570),
+                new Vector2(255, 1760), new Vector2(200, 1210),
             };
             var backSlots = new[]
             {
-                new Vector2(110, 1290), new Vector2(95, 1520),
-                new Vector2(140, 1680), new Vector2(80, 1150),
+                new Vector2(105, 1260), new Vector2(140, 1500),
+                new Vector2(75, 1720), new Vector2(60, 1120),
             };
             int fi = 0, bi = 0;
             for (int i = 1; i < mgr.Allies.Count; i++)
@@ -377,10 +378,10 @@ namespace Tanker
             var fillImg = fill.gameObject.AddComponent<Image>();
             fillImg.color = Hex("62d96a");
             fillImg.raycastTarget = false;
-            var status = Label("status", body.rectTransform, new Vector2(0, -size.y / 2 - 92), new Vector2(240, 30), "", 24, Hex("ffb0e0"), center: true);
+            var status = Label("status", body.rectTransform, new Vector2(0, -size.y / 2 - 92), new Vector2(210, 30), "", 24, Hex("ffb0e0"), center: true);
             Text incoming = null;
             if (u.Team == Team.Ally)
-                incoming = Label("incoming", body.rectTransform, new Vector2(0, -size.y / 2 - 122), new Vector2(240, 28), "", 22, Hex("ff8f7a"), center: true);
+                incoming = Label("incoming", body.rectTransform, new Vector2(0, -size.y / 2 - 122), new Vector2(210, 28), "", 22, Hex("ff8f7a"), center: true);
 
             var alt = u.IsTank ? LoadSheet("tank-brace") : LoadSheet(u.Sheet + "-charge");
             var action = LoadSheet(u.Sheet + "-attack") ?? LoadSheet(u.Sheet + "-cast");

@@ -441,7 +441,7 @@ namespace Tanker
             ["codex.ranged"] = new[] { "원거리", "Ranged" },
             ["party.front"] = new[] { "전열", "Front" },
             ["party.back"] = new[] { "후열", "Back" },
-            ["party.rowHint"] = new[] { "배치: 근접은 전열 공격 +1·후열 -1 — 적 근접은 전열부터, 도약 적(거미·박쥐·늑대)은 배치 무시", "Formation: melee +1 atk in front, -1 in back — melee foes hit front first; leapers (spider/bat/wolf) ignore rows" },
+            ["party.rowHint"] = new[] { "배치: 근접은 전열 공격 +{0}·후열 -{1} — 적 근접은 전열부터, 도약·매복 적은 배치 무시", "Formation: melee +{0} atk in front, -{1} in back — melee foes hit front first; leapers/ambushers ignore rows" },
 
             // v0.7 — 게임 방법 4페이지
             ["help.t0"] = new[] { "1. 나는 공격하지 않는다", "1. I don't attack" },
