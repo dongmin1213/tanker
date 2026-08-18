@@ -158,7 +158,10 @@ character centered in each cell, occupying about 80% of cell height, square canv
 
 AI가 뽑는 "픽셀 아트"는 픽셀 그리드가 어긋나 있으므로 원본을 그대로 쓰지 않는다:
 
-1. 캐릭터 시트: `python3 tools/pixelize.py <원본> -s 256 --align bottom -o unity/Assets/Resources/Art/`
+1. 캐릭터 시트: `python3 tools/pixelize.py <원본> -s 256 --align bottom --normalize 0.82 -o unity/Assets/Resources/Art/`
+   **`--normalize`는 필수** — 원본마다 캐릭터가 셀에서 차지하는 비율이 0.57~1.00으로 제각각이라
+   그대로 쓰면 게임 안에서 유닛 크기가 들쭉날쭉해진다 (v1.0 실기 지적). 4프레임 공통 스케일이라 지터도 없다.
+   배경색은 네 모서리에서 **자동 감지**하므로 마젠타가 아닌 배경(검정 등)도 키잉된다.
    (256×256 = 프레임당 128×128. `--align bottom`이 셀마다 실루엣을 **하단 중앙 기준으로 정렬**해
    프레임 간 좌표 지터를 없앤다 — AI 생성 시트는 셀마다 캐릭터 위치가 어긋나 있음)
 2. FX 시트: `--align center` (버스트는 중앙 기준 정렬)
