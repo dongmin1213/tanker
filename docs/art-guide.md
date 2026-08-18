@@ -15,6 +15,12 @@ flat solid magenta background (#FF00FF), no drop shadow, no text, no border, no 
 character centered in each cell, occupying about 80% of cell height, square canvas
 ```
 
+- **캐릭터에 마젠타/핑크 계열 색 금지** (v1.0 실패 사례): 배경 키잉과 구분이 안 돼 실루엣 내부까지 지워지거나
+  반대로 배경이 남는다. 실제로 강철 파괴자·거미 여왕·역병 쥐 3종이 이 문제로 폐기·재생성됐다
+  (역병 쥐는 몸 전체가 분홍으로 생성됨). 발주 시 "배경 마젠타는 캐릭터와 접하는 경계까지 완전 균일한 단색,
+  디더링·그라데이션·반투명 없이"를 명시할 것.
+- **후처리 주의**: 마젠타 일괄 제거 스크립트를 전체 시트에 돌리지 말 것 — 그림자·샤먼·리치는 **보라가 시그니처**라
+  통째로 지워진다 (v1.0에서 실제 발생, git 복구). 정리는 반드시 대상 파일을 지정해서.
 - **프레임 순서**: 좌상 → 우상 → 좌하 → 우하. 루프 애니메이션은 1↔4 연결이 자연스럽게.
 - **방향**: 전원 오른쪽 바라보기. 적군은 코드에서 좌우 반전(scale.x = -1)으로 사용.
 - **배경**: 반드시 마젠타 단색. "투명 배경"은 요청해도 가짜(체커보드)로 나오므로 금지.
@@ -93,6 +99,40 @@ character centered in each cell, occupying about 80% of cell height, square canv
 | armor-attack | 저주받은 갑옷 공격 원샷 | `hollow haunted suit of plate armor swinging a greatsword in a heavy arc, wind-up to slash across the 4 frames` |
 | lich-idle | 최종 보스 리치 왕 idle 루프 (v0.8) | `crowned skeletal lich king archmage in purple and green robes, floating, staff with green soulfire, towering presence filling 90% of each cell, hovering idle across the 4 frames` (시그니처: 왕관+녹색 사령술 — boss-idle보다 크고 위압적) |
 | lich-attack | 리치 왕 강타 원샷 | `crowned skeletal lich king striking with his soulfire staff, gather to smite across the 4 frames` |
+| lancer-idle | 창병 idle 루프 (v1.0) | `heavily armored spearman with a pike longer than his body and a small round shield, disciplined stance` (시그니처: 은청색 장창) |
+| lancer-attack | 창병 공격 원샷 | `armored spearman thrusting a long pike forward, wind-up to thrust across the 4 frames` |
+| venom-idle | 독술사 idle 루프 (v1.0) | `hooded plague alchemist with a bubbling green flask and a blowpipe, hunched idle` (시그니처: 독 초록) |
+| venom-attack | 독술사 공격 원샷 | `plague alchemist firing a poison dart from a blowpipe, green vapor trail` |
+| druid-idle | 드루이드 idle 루프 (v1.0) | `druid in leaf-woven robes with an antlered wooden staff, floating leaves around` (시그니처: 연녹) |
+| druid-attack | 드루이드 시전 원샷 | `druid raising an antlered staff, green healing pulse spreading outward` |
+| titan-idle | 거인 idle 루프 (v1.0) | `stone-skinned giant with bare fists and boulder shoulders, twice a goblin's height` (시그니처: 회청 암석) |
+| titan-attack | 거인 공격 원샷 | `stone giant slamming both fists down, wind-up to impact` |
+| arbalest-idle | 노병 사수 idle 루프 (v1.0) | `veteran crossbowman with a heavy steel crossbow and bolt case, brown leather armor` |
+| arbalest-attack | 사수 연사 원샷 | `veteran crossbowman firing two bolts in quick succession` |
+| monk-idle | 수도승 idle 루프 (v1.0) | `barehanded martial monk in grey robes with prayer beads, meditative stance` |
+| monk-attack | 수도승 공격 원샷 | `martial monk delivering a spinning palm strike` |
+| seer-idle | 점술사 idle 루프 (v1.0) | `blindfolded seer with three floating crystal orbs, violet-blue robes` |
+| seer-attack | 점술사 공격 원샷 | `seer sending a silver beam from floating crystal orbs` |
+| squire-idle | 종사 idle 루프 (v1.0) | `young squire knight with a large shield and short sword, protective stance` |
+| squire-attack | 종사 공격 원샷 | `young squire bashing forward with his shield` |
+| ooze-idle / ooze-attack | 분열 슬라임 (v1.0) | `sickly-yellow large gel blob with visible splitting seams` / 부풀려 덮치기 |
+| silencer-idle / silencer-attack | 주술 방해자 | `gaunt hooded cultist with a sewn-shut mouth mask and chain-bound rune tome` (시그니처: 남빛 룬) / 침묵 룬 방출 |
+| gazer-idle / gazer-attack | 응시자 | `floating single-eyed horror with grey petrifying gaze and few tentacles` / 회색 광선 |
+| piercer-idle / piercer-attack | 관통 오거 | `armored ogre wielding a huge spike-tipped awl-lance, shield-breaking pose` / 창 찌르기 |
+| effigy-idle / effigy-attack | 저주 인형 | `human-sized straw-and-cloth voodoo effigy with needles stuck in it` / 바늘 던지기 |
+| leech-idle / leech-attack | 흡혈 정령 | `translucent violet spirit with draining tendrils` / 촉수 흡수 |
+| rat-idle / rat-attack | 역병 쥐 | `diseased large rat with **grey-brown fur** and green miasma` / 물어뜯기 |
+| zealot-idle / zealot-attack | 광신도 | `red-hooded fanatic with self-inflicted wounds and a dagger` / 광기의 돌진 |
+| bramble-idle / bramble-attack | 가시 덩굴 | `giant thorn vine mass erupting from the floor, green-brown` / 사방 가시 |
+| breaker-idle / breaker-attack | 방패 파괴자 | `grey heavy-armored breaker with a giant hammer and chains` / 망치 내려찍기 |
+| mirror-idle / mirror-attack | 거울 정령 | `humanoid spirit made of mirror shards, pale blue reflections` / 거울면 반사 |
+| burrower-idle / burrower-attack | 굴착 벌레 | `brown giant worm with a circular toothed maw` / 땅에서 솟구쳐 물기 |
+| rot-idle / rot-attack | 부패 술사 | `rot-robed sorcerer holding a decayed heart` / 부패 안개 |
+| twin-idle / twin-attack | 쌍둥이 검사 | `light-armored dual-wield swordsman in purple-black` / 교차 베기 |
+| sentinel-idle / sentinel-attack | 동면 골렘 | `moss-covered giant stone sentinel with red eye glow` / 거대 주먹 초강타 |
+| brood-idle / brood-attack | 거미 여왕 (1막 보스 B) | `giant spider carrying an egg sac, dark brown body, **red eyes only**` / 앞다리 내려찍기 |
+| colossus-idle / colossus-attack | 강철 파괴자 (2막 보스 B) | `full-steel giant with a huge shoulder pile-bunker, matte steel grey` / 파일벙커 관통 |
+| wyrm-idle / wyrm-attack | 심연의 용 (3막 최종 보스) | `huge dark-red scaled dragon, wings half-spread, fills 90% of the cell` / 화염 브레스 |
 | lich-cast | 리치 왕 사령 폭풍 원샷 | `crowned skeletal lich king unleashing a swirling green necrotic storm from raised arms, gather to eruption across the 4 frames` |
 
 ## 비캐릭터 에셋
