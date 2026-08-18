@@ -45,6 +45,7 @@ namespace Tanker
         public int formGuardReduce = 2;  // 보호 진형: 동료 받는 피해 -
         public int formAtkPenalty = 1;   // 공격 진형: 받는 피해 +
         public int formSpearGuard = 2;   // 밸런스 진형: 창끝(전열 1명) 받는 피해 -
+        public int formStandardBack = 1; // 기본 진형: 후열 아군 받는 피해 -
 
         // ---- v1.0 풀 확장 ----
         // 신규 클래스 4 (창병·독술사·드루이드·거인) + 4 (사수·수도승·점술사·종사)

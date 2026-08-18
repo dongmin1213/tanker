@@ -10,6 +10,9 @@ namespace Tanker
     /// 배치모드: -executeMethod Tanker.BalanceSim.BatchRun  (환경변수 TANKER_SIM_RUNS로 횟수 조절)
     public static class BalanceSim
     {
+        /// 진형별 독립 측정용 — -1이면 무작위
+        public static int ForcedFormation = -1;
+
         // ---- 한 런의 결과 ----
         class RunResult
         {
@@ -137,7 +140,7 @@ namespace Tanker
             var res = new RunResult { Seed = seed };
             var run = new RunState(seed);
             var rng = new System.Random(seed * 31 + 7);
-            run.Formation = rng.Next(4);
+            run.Formation = ForcedFormation >= 0 ? ForcedFormation : rng.Next(4);
             run.EnsureRows();
             res.Party.AddRange(run.Party);
             res.Formation = run.Formation;
@@ -261,6 +264,23 @@ namespace Tanker
 
         [MenuItem("Tanker/밸런스 시뮬 30런")]
         public static void Menu30() => Debug.Log(Run(30));
+
+        /// 진형별 비교 — 같은 시드 집합을 4개 진형으로 각각 돌린다 (편차의 원인 분리)
+        public static void BatchFormations()
+        {
+            int n = 20;
+            var env = System.Environment.GetEnvironmentVariable("TANKER_SIM_RUNS");
+            if (!string.IsNullOrEmpty(env)) int.TryParse(env, out n);
+            var sb = new StringBuilder();
+            for (int f = 0; f < 4; f++)
+            {
+                ForcedFormation = f;
+                sb.AppendLine("### " + Loc.T("form." + f));
+                sb.AppendLine(Run(n));
+            }
+            ForcedFormation = -1;
+            Debug.Log("[BalanceSim-Form]\n" + sb);
+        }
 
         /// 배치모드 진입점
         public static void BatchRun()

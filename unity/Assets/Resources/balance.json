@@ -154,8 +154,8 @@
   "armorHp": 18,
   "armorPower": 4,
   "armorDamageCap": 3,
-  "actStageBonus": 10,
-  "descendHeal": 0.25,
+  "actStageBonus": 7,
+  "descendHeal": 0.4,
   "lichHp": 60,
   "lichPower": 12,
   "lichAoePower": 4,
@@ -285,5 +285,6 @@
   "encounterMaxEarly": 3,
   "encounterCapStage": 6,
   "formAtkPenalty": 1,
-  "formSpearGuard": 2
+  "formSpearGuard": 2,
+  "formStandardBack": 1
 }

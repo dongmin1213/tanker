@@ -764,6 +764,8 @@ namespace Tanker
                 dmg += Balance.I.formAtkPenalty;                     // 공격 진형 — 화력의 대가
             if (run != null && run.Formation == 1 && receiver.Team == Team.Ally && !receiver.IsTank && RowOf(receiver) == 0)
                 dmg = Mathf.Max(0, dmg - Balance.I.formSpearGuard);  // 밸런스 진형 — 창끝은 단단하다
+            if (run != null && run.Formation == 0 && receiver.Team == Team.Ally && !receiver.IsTank && RowOf(receiver) == 1)
+                dmg = Mathf.Max(0, dmg - Balance.I.formStandardBack); // 기본 진형 — 전열이 후열을 가려준다
             // v1.0: 지속 방벽 / 요새화 / 후위 정렬 / 종사 / 창병 / 교대 보호 / 관찰 / 완전 방어
             if (receiver.Team == Team.Ally && BarricadeNow > 0) dmg = Mathf.Max(0, dmg - BarricadeNow);
             if (receiver.Team == Team.Ally && FortressOn && !receiver.IsTank) dmg = Mathf.Max(0, dmg - FortressNow);
