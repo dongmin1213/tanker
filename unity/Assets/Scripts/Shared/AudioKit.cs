@@ -9,6 +9,9 @@ namespace Tanker
     {
         const int RATE = 44100;
 
+        /// 헤드리스(밸런스 시뮬·배치모드)에서는 오디오를 만들지 않는다
+        public static bool Silent;
+
         static AudioSource bgmSrc, sfxSrc;
         static AudioClip bgmClip;
         static AudioClip clickClip, cardClip, hitClip, guardClip, healClip, winClip, loseClip;
@@ -50,6 +53,7 @@ namespace Tanker
         /// ②없으면 절차 합성 (워커 스레드 — 첫 화면 메인 스레드 정지 방지).
         public static void PlayBgm()
         {
+            if (Silent) return;
             Ensure();
             if (bgmClip == null)
             {
@@ -79,13 +83,13 @@ namespace Tanker
 
         // ---- 효과음 재생 (지연 합성 + 캐시, 호출당 할당 없음) ----
 
-        public static void Click() { Ensure(); PlayOne(clickClip ??= MakeClick()); }
-        public static void Card() { Ensure(); PlayOne(cardClip ??= MakeCard()); }
-        public static void Hit() { Ensure(); PlayOne(hitClip ??= MakeHit()); }
-        public static void Guard() { Ensure(); PlayOne(guardClip ??= MakeGuard()); }
-        public static void Heal() { Ensure(); PlayOne(healClip ??= MakeHeal()); }
-        public static void Win() { Ensure(); PlayOne(winClip ??= MakeWin()); }
-        public static void Lose() { Ensure(); PlayOne(loseClip ??= MakeLose()); }
+        public static void Click() { if (Silent) return; Ensure(); PlayOne(clickClip ??= MakeClick()); }
+        public static void Card() { if (Silent) return; Ensure(); PlayOne(cardClip ??= MakeCard()); }
+        public static void Hit() { if (Silent) return; Ensure(); PlayOne(hitClip ??= MakeHit()); }
+        public static void Guard() { if (Silent) return; Ensure(); PlayOne(guardClip ??= MakeGuard()); }
+        public static void Heal() { if (Silent) return; Ensure(); PlayOne(healClip ??= MakeHeal()); }
+        public static void Win() { if (Silent) return; Ensure(); PlayOne(winClip ??= MakeWin()); }
+        public static void Lose() { if (Silent) return; Ensure(); PlayOne(loseClip ??= MakeLose()); }
 
         static void PlayOne(AudioClip clip) => sfxSrc.PlayOneShot(clip, SfxVolume);
 

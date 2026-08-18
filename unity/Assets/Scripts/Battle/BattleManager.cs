@@ -309,6 +309,15 @@ namespace Tanker
             return false;
         }
 
+        /// 같은 대상에 몰린 단일 공격 적 수 — 1턴 집중 즉사를 구조적으로 막는다 (도약형은 예외)
+        int FocusCount(Unit target)
+        {
+            int n = 0;
+            foreach (var e in Enemies)
+                if (e.Alive && !e.Leap && e.Intent == target && !e.Charging) n++;
+            return n;
+        }
+
         Unit SmartBackliner(Unit e)
         {
             int per = e.Power + AuraBonus(e);                       // 킬각 추정도 타격당 오라 포함 (M-02)
@@ -319,10 +328,17 @@ namespace Tanker
             foreach (var a in Allies)
             {
                 if (!a.Alive || a.IsTank || RowBlocked(e, a)) continue;
+                if (!e.Leap && FocusCount(a) >= 2) continue;   // 이미 둘이 노리는 아군은 제외 (집중 즉사 방지)
                 if (a.Hp <= dmg && (kill == null || a.Power > kill.Power)) kill = a;
                 if (low == null || a.Hp < low.Hp) low = a;
                 if (a != prev && (lowAlt == null || a.Hp < lowAlt.Hp)) lowAlt = a;
             }
+            if (kill == null && low == null)   // 전원이 이미 표적 — 원래 규칙으로 복귀
+                foreach (var a in Allies)
+                {
+                    if (!a.Alive || a.IsTank || RowBlocked(e, a)) continue;
+                    if (low == null || a.Hp < low.Hp) low = a;
+                }
             return kill ?? lowAlt ?? low ?? Tank;
         }
 
@@ -694,6 +710,11 @@ namespace Tanker
                            ? Balance.I.markPlusReduce : 0)
                         + (run != null && run.Has(RelicId.GuardCharm) ? Balance.I.relicGuardCharm : 0);
 
+        /// 보호 진형 — 후열 동료를 노린 근접 공격 1회를 탱커가 가로챈다 (턴당 1회, 진형의 실질 가치)
+        public bool GuardFormationIntercept(Unit enemy)
+            => run != null && run.Formation == 3 && !enemy.Leap && !guardInterceptUsed;
+        bool guardInterceptUsed;
+
         public Unit EffectiveTarget(Unit enemy)
         {
             if (enemy.Charging || IsStunnedNow(enemy)) return null;
@@ -703,6 +724,7 @@ namespace Tanker
             if (enemy.AoeIntent || enemy.Intent == null) return null;
             var cover = CoverPreview;
             if (cover != null && enemy.Intent == cover && !enemy.Pierce) return Tank; // 관통 적은 엄호 무시
+            if (GuardFormationIntercept(enemy) && !enemy.Intent.IsTank && !enemy.Pierce) return Tank; // 보호 진형 가로채기
             return enemy.Intent;
         }
 
@@ -738,6 +760,10 @@ namespace Tanker
             if (PhalanxNow && receiver.Team == Team.Ally) dmg = Mathf.Max(0, dmg - PhalanxNowAmt);
             if (run != null && run.Formation == 3 && receiver.Team == Team.Ally && !receiver.IsTank)
                 dmg = Mathf.Max(0, dmg - Balance.I.formGuardReduce); // 보호 진형 — 동료 피해 감산
+            if (run != null && run.Formation == 2 && receiver.Team == Team.Ally && !receiver.IsTank)
+                dmg += Balance.I.formAtkPenalty;                     // 공격 진형 — 화력의 대가
+            if (run != null && run.Formation == 1 && receiver.Team == Team.Ally && !receiver.IsTank && RowOf(receiver) == 0)
+                dmg = Mathf.Max(0, dmg - Balance.I.formSpearGuard);  // 밸런스 진형 — 창끝은 단단하다
             // v1.0: 지속 방벽 / 요새화 / 후위 정렬 / 종사 / 창병 / 교대 보호 / 관찰 / 완전 방어
             if (receiver.Team == Team.Ally && BarricadeNow > 0) dmg = Mathf.Max(0, dmg - BarricadeNow);
             if (receiver.Team == Team.Ally && FortressOn && !receiver.IsTank) dmg = Mathf.Max(0, dmg - FortressNow);
@@ -758,6 +784,9 @@ namespace Tanker
             if (receiver.IsTank && (BracingNow || FortressOn)) dmg /= 2;                                // 버티기·요새화
             if (receiver.IsTank && IronWillNow) dmg = Mathf.Min(dmg, IronWillNowCap); // 철의 의지: 한 방 상한
             if (receiver.IsTank && AegisCapNow > 0) dmg = Mathf.Min(dmg, AegisCapNow); // 수호 방벽: 지속 상한
+            // 확정 규칙(v1.0 밸런스): 감산·절반으로는 0이 되지 않는다 — 완전 무효는 방패·축복·최후의 저항만.
+            // 감산 스택으로 전투를 무손실로 만드는 빌드를 구조적으로 차단한다.
+            if (baseDmg > 0) dmg = Mathf.Max(1, dmg);
             if (receiver.IsTank && run != null && run.Has(RelicId.TowerShield))
                 dmg = Mathf.Min(dmg, Balance.I.relicTowerShield);                       // 타워 실드: 상시 한 방 상한
             return dmg;
@@ -1075,6 +1104,18 @@ namespace Tanker
                 PlannedCard = PendingCard; PlannedTarget = u; PendingCard = -1;
                 Log = Loc.F("log.planCardTarget", Cards.NameOf(card), u.Name);
             }
+        }
+
+        /// 헤드리스 밸런스 시뮬 전용 — 코루틴 없이 해소를 즉시 끝까지 돌린다 (연출 대기 무시).
+        /// 게임 규칙은 실제 Resolve를 그대로 쓰므로 검증기와 실게임이 어긋날 수 없다.
+        public void EndTurnHeadless()
+        {
+            if (Phase != Phase.Player) return;
+            PendingCard = -1;
+            CommitPlanned();
+            if (extraPlay) { extraPlay = false; PlannedCard = -1; PlannedTarget = null; StateVersion++; return; }
+            var it = Resolve();
+            while (it.MoveNext()) { }
         }
 
         public void EndTurn()
@@ -1895,6 +1936,8 @@ namespace Tanker
                     bool viaCover = false;
                     if (taunted) receiver = Tank;
                     else if (CoverTarget != null && planned == CoverTarget && hi == 0 && !e.Pierce) { receiver = Tank; viaCover = true; } // 엄호는 첫 타만, 관통은 무시
+                    else if (hi == 0 && !planned.IsTank && !e.Pierce && GuardFormationIntercept(e))
+                    { receiver = Tank; viaCover = true; guardInterceptUsed = true; }   // 보호 진형 가로채기 (턴당 1회)
                     else receiver = planned;
                     if (!receiver.Alive) receiver = Tank;
                     ApplyHit(e, planned, receiver, EnemyPow(e), taunted && receiver.IsTank, viaCover);
@@ -2036,7 +2079,7 @@ namespace Tanker
             ThornStanceAmt = 0; BraceCap = 0;
             if (OathTurns > 0) OathTurns--;
             // v1.0 상태 정리 — 이번 턴 카드 효과 소멸, 지속 효과 감소
-            VanguardAmt = 0; RearguardAmt = 0; InspireAmt = 0; awakenUsed = false;
+            VanguardAmt = 0; RearguardAmt = 0; InspireAmt = 0; awakenUsed = false; guardInterceptUsed = false;
             WarsongTarget = null; WarsongMult = 1; BlessTarget = null;
             FortressActive = false; FortressAlly = 0; CounterMult = 0; counterHits = 0; counterLast = null;
             InvulnTurn = false; SilenceTarget = null;

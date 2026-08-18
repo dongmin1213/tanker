@@ -123,10 +123,10 @@ namespace Tanker
 
         public static string ShortDesc(Card c) => Loc.T("card." + c.Type + ".s") + (c.Plus ? " ↑" : "");
 
-        /// 시작 덱 — 도발1 · 엄호2 · 버티기2 · 철벽1
+        /// 시작 덱 — 도발1 · 엄호1 · 결사 방어1(광역 대응) · 버티기2 · 철벽1
         public static List<Card> StarterDeck() => new List<Card>
         {
-            new Card(CardType.Taunt), new Card(CardType.Cover), new Card(CardType.Cover),
+            new Card(CardType.Taunt), new Card(CardType.Cover), new Card(CardType.Phalanx),
             new Card(CardType.Brace), new Card(CardType.Brace), new Card(CardType.Shield),
         };
     }

@@ -549,13 +549,21 @@ namespace Tanker
             var pool = EnemyPool();
             var picked = new List<EnemyPick>();
             int guard = 0;
-            while (budget > 0 && picked.Count < 4 && guard++ < 60)
+            // 적 수 상한 — 초반엔 3마리까지 (탱커 하나로 감당 가능한 위협 수), 후반에 4마리
+            int maxEnemies = stage >= b.encounterCapStage ? 4 : b.encounterMaxEarly;
+            while (budget > 0 && picked.Count < maxEnemies && guard++ < 60)
             {
                 var cand = pool[rng.Next(pool.Count)];
                 if (cand.MinFloor > run.CurNode.Floor + run.Act * b.mapFloors) continue; // 후반 전용 적
                 if (cand.Cost > budget && picked.Count >= 2) break;
                 if (cand.Cost > budget) continue;
                 // 방어 카운터형(관통·환경·회복차단·회복반전)은 한 조우에 최대 2종 — 불가능 난이도 방지
+                if (cand.Leap)
+                {
+                    int ln = 0;
+                    foreach (var q in picked) if (q.Leap) ln++;
+                    if (ln >= 2) continue;   // 진형을 무시하는 도약형은 최대 2마리
+                }
                 bool counter = cand.Pierce || cand.Env || cand.HealBlock || cand.Ai == AiKind.Rotmancer;
                 if (counter)
                 {
@@ -566,7 +574,7 @@ namespace Tanker
                 picked.Add(cand);
                 budget -= cand.Cost;
                 // 쌍둥이 검사는 짝으로만 의미가 있다 — 예산이 남을 때만 짝을 붙인다
-                if (cand.Ai == AiKind.TwinBlade && picked.Count < 4 && budget >= cand.Cost)
+                if (cand.Ai == AiKind.TwinBlade && picked.Count < maxEnemies && budget >= cand.Cost)
                 { picked.Add(cand); budget -= cand.Cost; }
             }
             while (picked.Count < 2) { picked.Add(pool[4]); } // 최소 2마리 (슬라임 보충)

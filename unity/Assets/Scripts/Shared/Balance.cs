@@ -42,7 +42,9 @@ namespace Tanker
         public int threatAuraBonus = 50; // 아군 킬각 우선순위: 지휘 오라
         public int threatBombBonus = 120;// 아군 킬각 우선순위: 폭발 임박
         public int formAtkBonus = 1;     // 공격 진형: 전원 공격 +
-        public int formGuardReduce = 1;  // 보호 진형: 동료 받는 피해 -
+        public int formGuardReduce = 2;  // 보호 진형: 동료 받는 피해 -
+        public int formAtkPenalty = 1;   // 공격 진형: 받는 피해 +
+        public int formSpearGuard = 2;   // 밸런스 진형: 창끝(전열 1명) 받는 피해 -
 
         // ---- v1.0 풀 확장 ----
         // 신규 클래스 4 (창병·독술사·드루이드·거인) + 4 (사수·수도승·점술사·종사)
@@ -94,6 +96,8 @@ namespace Tanker
         public int barterGold = 25; public int barterGoldPlus = 40;
         public int studyReduce = 1; public int studyReducePlus = 3;
         public int poisonTick = 1;
+        public int encounterMaxEarly = 3;   // 초반 조우 적 수 상한
+        public int encounterCapStage = 6;   // 이 스테이지부터 4마리 허용
         // v1.0 유물 20종
         public int relicStoneHeart = 2; public int relicBattleDrum = 1; public int relicSilverBell = 1;
         public int relicBloodPactHp = 5; public int relicBloodPactAtk = 2; public int relicTowerShield = 8;
