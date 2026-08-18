@@ -45,6 +45,12 @@ namespace Tanker
             CardType.Barter, CardType.Study, CardType.LastStand,
         };
 
+        /// 즉시(Swift) 카드 — 턴당 1장 제한을 소모하지 않고 바로 발동한다.
+        /// 자원·정보만 바꾸는 카드라 예약-커밋 없이 확정해도 수읽기를 해치지 않는다.
+        /// (각성이 무의미했던 원인: 각성 자체가 그 턴의 1장을 먹어 순증이 0이었다)
+        public static bool IsSwift(CardType c) =>
+            c == CardType.Scout || c == CardType.Discipline || c == CardType.Barter || c == CardType.Awaken;
+
         public static CardTarget TargetOf(CardType c)
         {
             switch (c)

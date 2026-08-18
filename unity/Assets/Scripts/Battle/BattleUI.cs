@@ -474,7 +474,9 @@ namespace Tanker
             }
         }
 
-        static string BadgeOf(CardType card) => Cards.TargetOf(card) switch
+        static string BadgeOf(CardType card) => Cards.IsSwift(card)
+            ? "<color=#8fd4a8>" + Loc.T("badge.swift") + "</color>"   // 즉시 — 턴을 쓰지 않는 카드
+            : Cards.TargetOf(card) switch
         {
             CardTarget.Enemy => "<color=#ff8a7a>" + Loc.T("badge.enemy") + "</color>",
             CardTarget.Ally => "<color=#7ab0ff>" + Loc.T("badge.ally") + "</color>",

@@ -64,7 +64,7 @@ namespace Tanker
         public bool InvulnTurn;                        // 최후의 저항: 이번 턴 탱커 무적
         public int SealedCard = -1;                    // 주술 방해자: 이번 턴 사용 불가 카드 인덱스
         public bool HealBlockedTurn;                   // 부패 술사: 이번 턴 회복 무효
-        bool extraPlay;                                // 각성: 이번 턴 카드 한 장 더
+        int extraPlays;                                // 각성: 이번 턴 추가로 쓸 수 있는 카드 수
         bool grudgeArmed, grudgePlus; int grudgeTaken; // 원한: 이번 턴 받은 피해 → 다음 턴 화력
         bool awakenUsed;                               // 각성은 턴당 1회
         int plannedRemoved = -1;                       // 이번 커밋에서 손패에서 빠진 인덱스
@@ -1069,6 +1069,12 @@ namespace Tanker
         {
             if (!CanUseSkill || !CardPlayable(idx)) return;
             StateVersion++;
+            // 즉시 카드 — 턴의 1장을 쓰지 않고 바로 발동 (자원·유틸 전용)
+            if (Cards.IsSwift(Hand[idx].Type))
+            {
+                PlaySwift(idx);
+                return;
+            }
             if (PendingCard == idx) { PendingCard = -1; Log = Loc.T("log.selCancel"); return; }
             if (PlannedCard == idx)
             {
@@ -1115,7 +1121,7 @@ namespace Tanker
             if (Phase != Phase.Player) return;
             PendingCard = -1;
             CommitPlanned();
-            if (extraPlay) { extraPlay = false; PlannedCard = -1; PlannedTarget = null; StateVersion++; return; }
+            if (extraPlays > 0) { extraPlays--; PlannedCard = -1; PlannedTarget = null; StateVersion++; return; }
             var it = Resolve();
             while (it.MoveNext()) { }
         }
@@ -1125,18 +1131,65 @@ namespace Tanker
             if (Phase != Phase.Player) return;
             PendingCard = -1;
             CommitPlanned();
-            if (extraPlay)
+            if (extraPlays > 0)
             {
                 if (SealedCard > plannedRemoved) SealedCard--;         // 손패 축소분 보정
                 else if (SealedCard == plannedRemoved) SealedCard = -1;
                 // 각성 — 이번 턴 카드를 한 장 더 사용한다 (턴당 1장 규칙을 깨는 유일 경로)
-                extraPlay = false;
+                extraPlays--;
                 PlannedCard = -1; PlannedTarget = null;
                 StateVersion++;
                 Log = Loc.T("log.extraPlay");
                 return;
             }
             StartCoroutine(Resolve());
+        }
+
+        /// 즉시 카드 실행 — 손패에서 빼고 효과만 적용한다 (예약 슬롯 사용 안 함)
+        void PlaySwift(int idx)
+        {
+            var card = Hand[idx];
+            var b = Balance.I;
+            bool plus = card.Plus;
+            AudioKit.Card();
+            switch (card.Type)
+            {
+                case CardType.Scout:
+                    BonusDrawNow(plus ? b.scoutDrawPlus : b.scoutDraw);
+                    break;
+                case CardType.Discipline:
+                    if (discardPile.Count > 0)
+                    {
+                        drawPile.AddRange(discardPile);
+                        discardPile.Clear();
+                        ShufflePile(drawPile);
+                    }
+                    if (plus) BonusDrawNow(1);
+                    break;
+                case CardType.Barter:
+                    int gold = plus ? b.barterGoldPlus : b.barterGold;
+                    BonusGold += gold;
+                    Popup?.Invoke(Tank, "+" + gold + "G", new Color(1f, 0.84f, 0.37f));
+                    break;
+                case CardType.Awaken:
+                    int cost = plus ? b.awakenCostPlus : b.awakenCost;
+                    if (Tank.Hp <= cost || awakenUsed) return;
+                    Tank.Hp -= cost;
+                    awakenUsed = true;
+                    extraPlays++;                      // 이번 턴 카드 1장 더 (즉시 카드라 순증 +1)
+                    Popup?.Invoke(Tank, Loc.T("pop.awaken"), new Color(1f, 0.7f, 0.9f));
+                    break;
+            }
+            if (idx < Hand.Count)
+            {
+                discardPile.Add(Hand[idx]);
+                Hand.RemoveAt(idx);
+                if (PlannedCard > idx) PlannedCard--;
+                else if (PlannedCard == idx) { PlannedCard = -1; PlannedTarget = null; }
+                if (SealedCard > idx) SealedCard--;
+                else if (SealedCard == idx) SealedCard = -1;
+            }
+            Log = Loc.F("log.swift", Cards.NameOf(card));
         }
 
         void CommitPlanned()
@@ -1271,29 +1324,9 @@ namespace Tanker
                         AegisCap = b.aegisCap;
                         AegisTurns = plus ? b.aegisTurnsPlus : b.aegisTurns;
                         break;
-                    case CardType.Awaken:
-                        int cost = plus ? b.awakenCostPlus : b.awakenCost;
-                        if (Tank.Hp > cost && !awakenUsed)
-                        {
-                            Tank.Hp -= cost;
-                            awakenUsed = true;  // 턴당 1회 — 체인 금지
-                            extraPlay = true;   // 이번 턴 카드 한 장 더
-                            Popup?.Invoke(Tank, Loc.T("pop.awaken"), new Color(1f, 0.7f, 0.9f));
-                        }
-                        break;
-                    case CardType.Scout:
-                        BonusDrawNow(plus ? b.scoutDrawPlus : b.scoutDraw);
-                        break;
-                    case CardType.Discipline:
-                        // 버린 더미를 즉시 뽑을 더미로 섞어 넣는다 (리셔플 타이밍 조작)
-                        if (discardPile.Count > 0)
-                        {
-                            drawPile.AddRange(discardPile);
-                            discardPile.Clear();
-                            ShufflePile(drawPile);
-                        }
-                        if (plus) BonusDrawNow(1);
-                        break;
+
+
+
                     case CardType.Feint:
                         if (PlannedTarget != null && PlannedTarget.Alive)
                         {
@@ -1379,11 +1412,7 @@ namespace Tanker
                     case CardType.Grudge:
                         grudgeArmed = true; grudgePlus = plus; grudgeTaken = 0;
                         break;
-                    case CardType.Barter:
-                        int gold = plus ? b.barterGoldPlus : b.barterGold;
-                        BonusGold += gold;
-                        Popup?.Invoke(Tank, "+" + gold + "G", new Color(1f, 0.84f, 0.37f));
-                        break;
+
                     case CardType.Study:
                         if (PlannedTarget != null && PlannedTarget.Alive)
                         {
@@ -2082,6 +2111,7 @@ namespace Tanker
             if (OathTurns > 0) OathTurns--;
             // v1.0 상태 정리 — 이번 턴 카드 효과 소멸, 지속 효과 감소
             VanguardAmt = 0; RearguardAmt = 0; InspireAmt = 0; awakenUsed = false; guardInterceptUsed = false;
+            extraPlays = 0;
             WarsongTarget = null; WarsongMult = 1; BlessTarget = null;
             FortressActive = false; FortressAlly = 0; CounterMult = 0; counterHits = 0; counterLast = null;
             InvulnTurn = false; SilenceTarget = null;

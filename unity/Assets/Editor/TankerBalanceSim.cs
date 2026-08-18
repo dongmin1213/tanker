@@ -39,6 +39,17 @@ namespace Tanker
         {
             if (bm.Phase != Phase.Player || bm.Hand.Count == 0) return;
 
+            // 즉시 카드는 턴을 쓰지 않으므로 먼저 전부 사용한다 (합리적 플레이)
+            for (int guard = 0; guard < 6; guard++)
+            {
+                int swift = -1;
+                for (int i = 0; i < bm.Hand.Count; i++)
+                    if (Cards.IsSwift(bm.Hand[i].Type) && bm.CardPlayable(i)) { swift = i; break; }
+                if (swift < 0) break;
+                bm.PressCard(swift);
+            }
+            if (bm.Hand.Count == 0) return;
+
             // 이번 턴 가장 큰 피해를 받을 아군 / 탱커 예상 피해
             Unit worst = null; int worstDmg = 0;
             foreach (var a in bm.Allies)
