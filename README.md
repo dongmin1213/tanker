@@ -65,7 +65,7 @@
 - **아키텍처 규약(신규)**: VSA 슬라이스(Battle/Run/Shared), 밸런스 수치는 `Resources/balance.json` 단일 출처(하드코딩 금지),
   다국어 ko/en(`Loc`, 타이틀에서 전환), 최적화 최우선 검토. macOS 스탠드얼론 빌드 검증 완료(빌드 시점 씬 생성).
 - 다음 관문: **유저 직접 플레이 재미 판정** (v0.3.2는 어렵습니다 — 탱커 회복원이 버티기·휴식·물약뿐) → 사운드, 노드 분기, 딜러/힐러 개성.
-- 저장소: https://github.com/dongmin1213/tanker (private)
+- 저장소: https://github.com/dongmin1213/tanker
 
 ## 빠른 시작
 
